@@ -7,6 +7,10 @@
   const $=s=>document.querySelector(s);
   const DOMINIO="@protectepi.com.br";
   const FORA_DO_DOMINIO=["planejamentoprotect@gmail.com"]; // e-mails de fora da Protect que podem criar conta (dono do app)
+  const DONO="planejamentoprotect@gmail.com";
+  const PAPEIS_INICIAIS={
+    gestores:["administrativo@protectepi.com.br","controladoria@protectepi.com.br","rh@protectepi.com.br","supplychain@protectepi.com.br"],
+    master:["gustavo@protectepi.com.br",DONO],extras:[DONO]};
 
   if(!cfg||!cfg.apiKey||String(cfg.apiKey).startsWith("COLE")){
     document.addEventListener("DOMContentLoaded",()=>mostraLogin("Configuração do Firebase ausente. Preencha o arquivo config.js.",true));
@@ -74,7 +78,9 @@
     if(!u){mostraLogin();return}
     if(!u.emailVerified){mostraVerificacao(u);return}
     try{
-      const p=await fs.doc("config/papeis").get();const m=p.exists?p.data():{};const e=u.email.toLowerCase();
+      const ref=fs.doc("config/papeis"),p=await ref.get(),e=u.email.toLowerCase();let m=p.exists?p.data():{};
+      /* Primeiro acesso do dono: cria a lista de papéis com os gestores da Central antiga. */
+      if(!p.exists&&e===DONO){m=PAPEIS_INICIAIS;try{await ref.set(m)}catch(x){}}
       papel=(m.master||[]).includes(e)?"master":(m.gestores||[]).includes(e)?"gestor":null;
     }catch(e){papel=null}
     try{if(papel){sessionStorage.setItem("gestor",papel);sessionStorage.setItem("gestorConta",u.email.toLowerCase())}else{sessionStorage.removeItem("gestor");sessionStorage.removeItem("gestorConta")}}catch(e){}
