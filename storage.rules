@@ -1,0 +1,12 @@
+rules_version = '2';
+// Fotos dos pedidos. O nome do arquivo é um código aleatório de 32 caracteres, então só quem tem o pedido conhece o link.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /assets/{id} {
+      allow read: if true;
+      allow create: if request.auth != null && request.auth.token.email_verified == true
+                    && request.resource.size < 8 * 1024 * 1024
+                    && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

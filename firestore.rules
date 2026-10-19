@@ -1,0 +1,40 @@
+rules_version = '2';
+// Regras do banco da Central. Os papéis ficam em config/papeis:
+//   { gestores: ["administrativo@protectepi.com.br", ...], master: ["gustavo@protectepi.com.br"], extras: ["alguem@gmail.com"] }
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signed() { return request.auth != null; }
+    function email() { return request.auth.token.email.lower(); }
+    function papeis() { return get(/databases/$(db)/documents/config/papeis).data; }
+    function protect() {
+      return signed() && request.auth.token.email_verified == true &&
+        (email().matches('.*@protectepi[.]com[.]br$') || email() in papeis().get('extras', []));
+    }
+    function master() { return protect() && email() in papeis().get('master', []); }
+    function gestor() { return protect() && (email() in papeis().get('gestores', []) || master()); }
+    function souAutor() { return request.resource.data.autor == request.auth.uid; }
+
+    // Dono do app (planejamentoprotect@gmail.com, definido pelo Thomas em 2026-10-19): só ele cria a lista de papéis na primeira vez.
+    function dono() { return signed() && request.auth.token.email_verified == true && email() == 'planejamentoprotect@gmail.com'; }
+    match /config/{d} { allow read: if signed(); allow write: if master() || dono(); }
+
+    // Pedidos: qualquer pessoa da Protect cria em seu nome; só gestão altera; só master exclui.
+    match /solicitacoes/{id} { allow read: if protect(); allow create: if (protect() && souAutor()) || master() || dono(); allow update: if gestor(); allow delete: if master(); }
+    match /reservas/{id}     { allow read: if protect(); allow create: if (protect() && souAutor()) || master() || dono(); allow update: if gestor(); allow delete: if master(); }
+    match /chamados/{id}     { allow read: if protect(); allow create: if (protect() && souAutor()) || master() || dono(); allow update: if gestor(); allow delete: if master(); }
+
+    // Decisões, respostas, recusas e bloqueios de sala: só gestão grava.
+    match /decisoes/{id}        { allow read: if protect(); allow write: if gestor() || dono(); }
+    match /chamados_gestao/{id} { allow read: if protect(); allow write: if gestor() || dono(); }
+    match /bloqueios/{id}       { allow read: if protect(); allow write: if gestor() || dono(); }
+
+    // Travas curtas para evitar reservas e protocolos duplicados.
+    match /travas/{id} { allow read, write: if protect(); }
+
+    // Dados privados de cada pessoa (avisos já vistos).
+    match /data/users/{uid}/{resto=**} { allow read, write: if signed() && request.auth.uid == uid; }
+
+    // A antiga tabela de senhas não é usada no app.
+    match /seguranca/{d} { allow read, write: if false; }
+  }
+}
