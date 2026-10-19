@@ -1,5 +1,5 @@
 /* Central de Solicitações (Protect EPI) como app independente.
-   Este arquivo liga a página ao Firebase (login, banco Firestore, fotos no Storage)
+   Este arquivo liga a página ao Firebase (login e banco Firestore, onde ficam também as fotos)
    e expõe a mesma interface window.claude.use(...) que a página já usava no claude.ai,
    para que o código da Central rode quase sem mudanças. */
 (function(){
@@ -13,7 +13,7 @@
     return;
   }
   firebase.initializeApp(cfg);
-  const auth=firebase.auth(),fs=firebase.firestore(),st=firebase.storage();
+  const auth=firebase.auth(),fs=firebase.firestore();
   try{fs.settings({ignoreUndefinedProperties:true,merge:true})}catch(e){}
   try{fs.enablePersistence({synchronizeTabs:true}).catch(()=>{})}catch(e){}
 
@@ -27,11 +27,37 @@
     });
   };
 
-  /* Fotos: ficam em assets/{id} no Storage; o id é aleatório e é o que a página guarda. */
-  const bucket=cfg.storageBucket;
-  window.blobUrl=id=>`https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent("assets/"+id)}?alt=media`;
+  /* Fotos: ficam no próprio Firestore (coleção fotos/{id}), como JPEG reduzido, para não precisar do Storage (pago).
+     A página continua guardando só o id; as imagens com data-foto são preenchidas assim que a foto chega. */
+  const LIMITE=900000; // cada documento do Firestore aceita até ~1 MB
+  const VAZIA="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+  const cacheFoto=new Map(); // id -> blob: URL (ou Promise enquanto carrega)
+  window.blobUrl=id=>{const u=cacheFoto.get(id);return typeof u==="string"?u:VAZIA};
   const novoId=()=>{const a=new Uint8Array(16);crypto.getRandomValues(a);return [...a].map(x=>x.toString(16).padStart(2,"0")).join("")};
-  const assets={async upload(blob){const id=novoId();await st.ref("assets/"+id).put(blob,{contentType:blob.type||"image/jpeg"});return{id,url:window.blobUrl(id)}}};
+  const paraDataUrl=b=>new Promise((ok,erro)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=erro;r.readAsDataURL(b)});
+  async function reduz(blob){
+    let bmp;try{bmp=await createImageBitmap(blob)}catch(e){const d=await paraDataUrl(blob);if(d.length<=LIMITE)return d;throw new Error("Imagem grande demais.")}
+    for(const [lado,q] of [[1600,.8],[1280,.75],[1024,.7],[800,.65],[640,.6],[480,.55]]){
+      const k=Math.min(1,lado/Math.max(bmp.width,bmp.height)),c=document.createElement("canvas");
+      c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
+      const d=c.toDataURL("image/jpeg",q);if(d.length<=LIMITE)return d;
+    }
+    throw new Error("Imagem grande demais.");
+  }
+  window.salvaFoto=async(id,blob)=>{const data=await reduz(blob);await fs.doc("fotos/"+id).set({data,criadoEm:Date.now(),por:auth.currentUser?.uid||null});return id};
+  const assets={async upload(blob){const id=novoId();await window.salvaFoto(id,blob);return{id,url:VAZIA}}};
+  function carregaFoto(id){
+    let u=cacheFoto.get(id);if(u)return u;
+    u=fs.doc("fotos/"+id).get().then(async s=>{if(!s.exists)throw new Error("sem foto");const b=await (await fetch(s.data().data)).blob();const url=URL.createObjectURL(b);cacheFoto.set(id,url);return url}).catch(e=>{cacheFoto.delete(id);throw e});
+    cacheFoto.set(id,u);return u;
+  }
+  function preencheFotos(raiz){
+    (raiz.querySelectorAll?raiz:document).querySelectorAll("[data-foto]").forEach(el=>{
+      const id=el.getAttribute("data-foto");if(el.dataset.fotoOk===id)return;el.dataset.fotoOk=id;
+      carregaFoto(id).then(url=>{if(el.tagName==="IMG")el.src=url;else el.href=url}).catch(()=>{if(el.tagName==="IMG")el.alt="Foto indisponível"});
+    });
+  }
+  new MutationObserver(()=>preencheFotos(document)).observe(document.documentElement,{childList:true,subtree:true});
 
   const downloads={async save({filename,data,mimeType}){
     const b=new Blob([data],{type:mimeType||"application/octet-stream"});const u=URL.createObjectURL(b);

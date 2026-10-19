@@ -15,7 +15,6 @@ pre{white-space:pre-wrap;font:12px ui-monospace,monospace;color:var(--muted);max
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </head><body>
@@ -55,10 +54,10 @@ pre{white-space:pre-wrap;font:12px ui-monospace,monospace;color:var(--muted);max
     for(const c of cols)for(const [id,d] of Object.entries(dados.colecoes[c])){
       try{await db.doc(c+"/"+id).set(d);ok++}catch(e){erro++;log("ERRO "+c+"/"+id+": "+(e.code||e.message))}}
     log(`Documentos: ${ok} importados, ${erro} com erro.`);
-    const st=firebase.storage();let f=0;
+    let f=0;
     for(const id of dados.fotos){
       try{const r=await fetch("migracao/fotos/"+id);if(!r.ok)throw new Error("arquivo não encontrado");const b=await r.blob();
-        await st.ref("assets/"+id).put(b,{contentType:b.type&&b.type.startsWith("image/")?b.type:"image/jpeg"});f++}
+        await window.salvaFoto(id,b);f++}
       catch(e){log("ERRO foto "+id+": "+(e.code||e.message))}}
     log(`Fotos: ${f} de ${dados.fotos.length} enviadas.`);log("Pronto. Apague a pasta migracao do repositório depois de conferir.");
   };

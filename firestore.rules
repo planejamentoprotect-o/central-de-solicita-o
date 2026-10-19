@@ -28,6 +28,9 @@ service cloud.firestore {
     match /chamados_gestao/{id} { allow read: if protect(); allow write: if gestor() || dono(); }
     match /bloqueios/{id}       { allow read: if protect(); allow write: if gestor() || dono(); }
 
+    // Fotos anexadas (JPEG reduzido guardado no próprio banco): quem é da Protect envia e vê; só master apaga.
+    match /fotos/{id} { allow read: if protect(); allow create: if protect() && request.resource.data.data is string && request.resource.data.data.size() < 1000000; allow delete: if master(); }
+
     // Travas curtas para evitar reservas e protocolos duplicados.
     match /travas/{id} { allow read, write: if protect(); }
 

@@ -1,6 +1,6 @@
 # Central de Solicitações · Protect (app)
 
-App web instalável (PWA) da Central de Solicitações da Protect EPI. Roda no navegador, pode ser instalado no computador e no celular, e usa o Firebase para login, banco de dados (Firestore) e fotos (Storage).
+App web instalável (PWA) da Central de Solicitações da Protect EPI. Roda no navegador, pode ser instalado no computador e no celular, e usa o Firebase para login, banco de dados e fotos (Firestore). Não usa o Storage, que exige plano pago.
 
 ## Arquivos
 
@@ -10,7 +10,7 @@ App web instalável (PWA) da Central de Solicitações da Protect EPI. Roda no n
 | `app.js` | Liga a Central ao Firebase: login, banco, fotos, download do Excel, instalação |
 | `config.js` | Configuração do projeto Firebase (preencher) |
 | `manifest.webmanifest`, `sw.js`, `icons/` | Deixam o app instalável e rápido para abrir |
-| `firestore.rules`, `storage.rules` | Quem pode ler e gravar o quê |
+| `firestore.rules` | Quem pode ler e gravar o quê (as fotos ficam no Firestore, coleção `fotos`, sem precisar do Storage pago) |
 | `importar.html` | Página usada uma vez para trazer os dados da Central antiga |
 | `firebase.json` | Configuração de hospedagem no Firebase Hosting |
 
@@ -24,7 +24,7 @@ App web instalável (PWA) da Central de Solicitações da Protect EPI. Roda no n
 ## Colocar no ar (uma vez)
 
 1. No [Console do Firebase](https://console.firebase.google.com), crie o projeto e ative:
-   Authentication > E-mail/senha, Firestore Database, Storage.
+   Authentication > E-mail/senha e Firestore Database.
 2. Registre um App da Web e copie o `firebaseConfig` para `config.js`.
 3. O dono do app (planejamentoprotect@gmail.com) já está em `firestore.rules`.
 4. Publique: `npm i -g firebase-tools`, `firebase login`, `firebase use --add`, `firebase deploy`.

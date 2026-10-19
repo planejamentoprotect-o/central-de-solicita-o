@@ -45,14 +45,13 @@ head+='''<style>
 <script src="'''+FB+'''firebase-app-compat.js"></script>
 <script src="'''+FB+'''firebase-auth-compat.js"></script>
 <script src="'''+FB+'''firebase-firestore-compat.js"></script>
-<script src="'''+FB+'''firebase-storage-compat.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </head><body>
 '''
 s=body
-# fotos: usam a URL do Storage
-s=s.replace('href="/_blob/${esc(id)}"','href="${esc(blobUrl(id))}"').replace('src="/_blob/${esc(id)}"','src="${esc(blobUrl(id))}"')
+# fotos: vêm do Firestore; o app.js preenche os elementos com data-foto
+s=s.replace('href="/_blob/${esc(id)}"','href="${esc(blobUrl(id))}" data-foto="${esc(id)}"').replace('src="/_blob/${esc(id)}"','src="${esc(blobUrl(id))}" data-foto="${esc(id)}"')
 assert "/_blob/" not in s
 # painel de gestão só para quem tem papel; botão sair do painel = sair do app
 rep('$("#t-gestao").hidden=false;','$("#t-gestao").hidden=!(window.__APP?window.__APP.papel:true);')

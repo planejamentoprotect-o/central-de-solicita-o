@@ -349,7 +349,6 @@ aside.side ol{margin:8px 0 0;padding-left:20px;color:var(--muted);font-size:14px
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </head><body>
@@ -1082,7 +1081,7 @@ function gTickets(tipo){
   <div class="items">${lista.length?lista.map(r=>ticketItem(r,tipo)).join(""):`<div class="panel empty">Nada aqui. As novas solicitações aparecem nesta fila assim que forem enviadas.</div>`}</div>`;
 }
 function ticketItem(r,tipo){
-  const st=stT(r);const fotos=(r.fotos||[]).map((id,i)=>`<a href="${esc(blobUrl(id))}" target="_blank" rel="noopener"><img src="${esc(blobUrl(id))}" alt="Foto ${i+1} da solicitação" loading="lazy"></a>`).join("");
+  const st=stT(r);const fotos=(r.fotos||[]).map((id,i)=>`<a href="${esc(blobUrl(id))}" data-foto="${esc(id)}" target="_blank" rel="noopener"><img src="${esc(blobUrl(id))}" data-foto="${esc(id)}" alt="Foto ${i+1} da solicitação" loading="lazy"></a>`).join("");
   return `<details class="item ${esc(r.prioridade)}" data-id="${esc(r.id)}"><summary>
     <span class="proto">${proto(TIPO[tipo].pref,r)}</span>
     <span class="main"><b>${r.tipoMaquina?esc(r.tipoMaquina)+(r.patrimonio?" · Pat. "+esc(r.patrimonio):"")+" · ":""}${esc((r.descricao||"").split("\n")[0])}</b><span><span class="prio ${esc(r.prioridade)}">${PRIO[r.prioridade]||""}</span> · ${esc(r.nome)} · ${esc(r.setor)} · ${fmtTs(r.criadoEm)}${(r.fotos||[]).length?` · ${r.fotos.length} foto(s)`:""}</span></span>
@@ -1177,7 +1176,7 @@ function gChamados(){
 }
 function chItem(r){
   const st=chSt(r),resp=chResp(r);
-  const fotos=(r.imagens||[]).map((id,i)=>`<a href="${esc(blobUrl(id))}" target="_blank" rel="noopener"><img src="${esc(blobUrl(id))}" alt="Imagem ${i+1} do chamado" loading="lazy"></a>`).join("");
+  const fotos=(r.imagens||[]).map((id,i)=>`<a href="${esc(blobUrl(id))}" data-foto="${esc(id)}" target="_blank" rel="noopener"><img src="${esc(blobUrl(id))}" data-foto="${esc(id)}" alt="Imagem ${i+1} do chamado" loading="lazy"></a>`).join("");
   return `<details class="item ${esc(r.prioridade)}" data-id="${esc(r.id)}"><summary>
    <span class="proto">${esc(r.protocolo||r.id)}</span>
    <span class="main"><b>${esc((r.descricao||"").split("\n")[0])}</b><span><span class="prio ${esc(r.area==="KM"?"baixa":"media")}" style="color:var(--accent)">${esc(AREA[r.area]||r.area)}</span> · <span class="prio ${esc(r.prioridade)}">${PRIO[r.prioridade]||""}</span> · ${esc(r.nome)} · ${esc(r.setor)} · ${fmtTs(r.criadoEm)}</span></span>
