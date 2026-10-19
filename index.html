@@ -1383,7 +1383,7 @@ refreshR();
   showBanner();
   if(!db)return;
   try{const g=sessionStorage.getItem("gestor");if(g==="gestor"||g==="master"){S.gestorOk=true;S.papel=g;S.conta=sessionStorage.getItem("gestorConta")||""}}catch(e){}
-  $("#t-gestao").hidden=!(window.__APP?window.__APP.papel:true);if(store("aba")==="gestao")setView("gestao");
+  $("#t-gestao").hidden=!(window.__APP?window.__APP.papel:true);if(store("aba")==="gestao"&&!$("#t-gestao").hidden)setView("gestao");
   if(S.uid){try{const ps=await db.doc(`data/users/${S.uid}/perfil`).get();if(ps.exists)await db.doc(`data/users/${S.uid}/perfil`).delete()}catch(e){}}
   const err=e=>console.warn(e);
   await carregaAvisados();

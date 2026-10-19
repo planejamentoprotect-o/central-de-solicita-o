@@ -55,6 +55,7 @@ s=s.replace('href="/_blob/${esc(id)}"','href="${esc(blobUrl(id))}" data-foto="${
 assert "/_blob/" not in s
 # painel de gestão só para quem tem papel; botão sair do painel = sair do app
 rep('$("#t-gestao").hidden=false;','$("#t-gestao").hidden=!(window.__APP?window.__APP.papel:true);')
+rep('if(store("aba")==="gestao")setView("gestao");','if(store("aba")==="gestao"&&!$("#t-gestao").hidden)setView("gestao");')
 rep('$("#g-sair").onclick=()=>{','$("#g-sair").onclick=()=>{if(window.appSair){window.appSair();return}')
 # pílula do topo: mostra o e-mail e permite sair
 rep('$("#whoTxt").textContent=!db?"Não conectado":"Conectado";','$("#whoTxt").textContent=!db?"Não conectado":(window.__APP?.email||"Conectado");if(window.appSair)$("#who").onclick=()=>{if(confirm("Sair da sua conta?"))window.appSair()};$("#who").title="Clique para sair";')
