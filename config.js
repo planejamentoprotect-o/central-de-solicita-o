@@ -12,5 +12,5 @@ window.FIREBASE_CONFIG={
 
 /* Envio de e-mails de atualização para os solicitantes (Google Apps Script da conta planejamentoprotect@gmail.com).
    Cole aqui o endereço do app da Web do script e a mesma chave que está no script. Vazio = não envia e-mail. */
-window.EMAIL_URL="";
-window.EMAIL_CHAVE="";
+window.EMAIL_URL="https://script.google.com/macros/s/AKfycbyJJxMDWtWQGX-ElnnIwb0sm7Fu3-aEbN4L4-6l2ig8G8F4RoE_zCzsM055E70E5-yw/exec";
+window.EMAIL_CHAVE="protect2026avisos";
