@@ -86,10 +86,12 @@
   /* Solicitante (sem login) só lê os próprios pedidos e chamados; a gestão lê tudo. */
   const PRIVADAS=new Set(["solicitacoes","chamados"]);
   const db=new Proxy(fs,{get(t,k){
-    if(k==="doc")return caminho=>{const r=t.doc(caminho);return /^(decisoes|chamados_gestao)\/[^/]+$/.test(caminho)&&papel?comAviso(r,caminho):r};
-    if(k==="collection")return n=>{const c=t.collection(n);if(!PRIVADAS.has(n)||papel)return c;
+    if(k==="doc")return caminho=>{const r=t.doc(caminho);if(/^(decisoes|chamados_gestao)\/[^/]+$/.test(caminho)&&papel)return comAviso(r,caminho);
+      const [col]=caminho.split("/");return PEDIDOS.has(col)?comRecibo(r):r};
+    if(k==="collection")return n=>{const c=t.collection(n);const docR=(...a)=>PEDIDOS.has(n)?comRecibo(c.doc(...a)):c.doc(...a);
+      if(!PRIVADAS.has(n)||papel)return new Proxy(c,{get(cc,kk){if(kk==="doc")return docR;const v=cc[kk];return typeof v==="function"?v.bind(cc):v}});
       const meus=()=>c.where("autor","==",auth.currentUser?.uid||"-");
-      return{doc:(...a)=>c.doc(...a),where:(...a)=>meus().where(...a),get:(...a)=>meus().get(...a),onSnapshot:(...a)=>meus().onSnapshot(...a)}};
+      return{doc:docR,where:(...a)=>meus().where(...a),get:(...a)=>meus().get(...a),onSnapshot:(...a)=>meus().onSnapshot(...a)}};
     const v=t[k];return typeof v==="function"?v.bind(t):v}});
   const user={id:async()=>auth.currentUser?.uid||null,canEdit:async()=>!!papel,can:async()=>true,email:()=>auth.currentUser?.email||""};
 
@@ -183,6 +185,23 @@
 
   /* ---------- Aviso por e-mail quando a gestão atualiza um pedido ---------- */
   const ROTULO={aberta:"Aberta",em_andamento:"Em andamento",concluida:"Concluída",pendente:"Aguardando aprovação",aprovada:"Aprovada",recusada:"Recusada",aberto:"Aberto",respondido:"Respondido",encerrado:"Encerrado",recusado:"Recusado"};
+  /* Ao abrir um pedido, quem tem e-mail confirmado recebe um recibo com o número do protocolo. */
+  const PEDIDOS=new Set(["solicitacoes","reservas","chamados"]);
+  function comRecibo(ref){
+    return new Proxy(ref,{get(t,k){
+      if(k==="set")return async(dados,...resto)=>{const r=await t.set(dados,...resto);
+        if(!resto.length&&dados&&dados.autor&&dados.autor===auth.currentUser?.uid)enviaRecibo(dados).catch(e=>console.warn("Recibo por e-mail:",e));return r};
+      const v=t[k];return typeof v==="function"?v.bind(t):v}});
+  }
+  async function enviaRecibo(p){
+    const para=window.__APP?.email||auth.currentUser?.email||"";if(!para||!window.EMAIL_URL)return;
+    const prot=p.protocolo||"";
+    const texto=`Olá${p.nome?", "+p.nome:""}.\n\nRecebemos seu pedido ${prot} na Central de Solicitações da Protect.\nVocê vai receber um e-mail a cada atualização da gestão.\n\nAcompanhe em Minhas solicitações:\n${voltaLink()}`;
+    await mandaEmail(para,"Pedido recebido "+prot,texto);
+  }
+  function mandaEmail(para,assunto,texto){
+    return fetch(window.EMAIL_URL,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},body:JSON.stringify({chave:window.EMAIL_CHAVE||"",para,assunto,texto})});
+  }
   function comAviso(ref,caminho){
     return new Proxy(ref,{get(t,k){
       if(k==="set")return async(dados,...resto)=>{let antes={};try{const a=await t.get();antes=a.exists?a.data():{}}catch(x){}
@@ -208,7 +227,7 @@
     if(!para)return;
     const prot=pedido.protocolo||id;
     const texto=`Olá${pedido.nome?", "+pedido.nome:""}.\n\nSeu pedido ${prot} na Central de Solicitações da Protect foi atualizado.\n\n${linhas.join("\n")}\n\nVeja os detalhes em Minhas solicitações:\n${voltaLink()}`;
-    await fetch(url,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},body:JSON.stringify({chave:window.EMAIL_CHAVE||"",para,assunto:"Atualização do pedido "+prot,texto})});
+    await mandaEmail(para,"Atualização do pedido "+prot,texto);
   }
 
   /* ---------- Login da gestão (dentro da aba Painel de Gestão) ---------- */
