@@ -84,6 +84,7 @@
   /* Solicitante (sem login) só lê os próprios pedidos e chamados; a gestão lê tudo. */
   const PRIVADAS=new Set(["solicitacoes","chamados"]);
   const db=new Proxy(fs,{get(t,k){
+    if(k==="doc")return caminho=>{const r=t.doc(caminho);return /^(decisoes|chamados_gestao)\/[^/]+$/.test(caminho)&&papel?comAviso(r,caminho):r};
     if(k==="collection")return n=>{const c=t.collection(n);if(!PRIVADAS.has(n)||papel)return c;
       const meus=()=>c.where("autor","==",auth.currentUser?.uid||"-");
       return{doc:(...a)=>c.doc(...a),where:(...a)=>meus().where(...a),get:(...a)=>meus().get(...a),onSnapshot:(...a)=>meus().onSnapshot(...a)}};
@@ -98,6 +99,7 @@
   let iniciado=false;
   auth.onAuthStateChanged(async u=>{
     if(iniciado){location.reload();return} // trocou de conta (entrou ou saiu da gestão)
+    if(u&&await confirmaLinkEmail(u))return;
     if(!u){try{await auth.signInAnonymously()}catch(e){mostraLogin("Não foi possível abrir a Central ("+(e.code||e.message)+"). Ative o login Anônimo no Firebase.",true)}return}
     if(!u.isAnonymous&&!u.emailVerified){mostraVerificacao(u);return}
     papel=null;let e=null;
@@ -118,7 +120,8 @@
         if(!papel&&DONOS.includes(e))papel="master";
       }catch(x){papel=DONOS.includes(e)?"master":null;erro=x.code||x.message}
       if(erro)console.warn("Papéis:",erro);
-      if(!papel){try{sessionStorage.setItem("gestaoMsg","A conta "+e+" não tem acesso ao Painel de Gestão."+(erro?" ("+erro+")":""))}catch(x){}await auth.signOut();return}
+      let viaGestao=false;try{viaGestao=sessionStorage.getItem("viaGestao")==="1";sessionStorage.removeItem("viaGestao")}catch(x){}
+      if(!papel&&viaGestao){try{sessionStorage.setItem("gestaoMsg","A conta "+e+" não tem acesso ao Painel de Gestão."+(erro?" ("+erro+")":""))}catch(x){}await auth.signOut();return}
     }
     try{if(papel){sessionStorage.setItem("gestor",papel);sessionStorage.setItem("gestorConta",e)}else{sessionStorage.removeItem("gestor");sessionStorage.removeItem("gestorConta")}}catch(x){}
     window.__APP={email:e,papel,anonimo:u.isAnonymous};
@@ -126,9 +129,85 @@
     document.documentElement.classList.toggle("app-gestor",!!papel);
     iniciado=true;pronto();
     preparaLoginGestao();
+    if(!papel)barraEmail(u);
   });
 
   window.appSair=async()=>{try{sessionStorage.clear();localStorage.setItem("aba","manutencao")}catch(e){}await auth.signOut()};
+
+  /* ---------- E-mail do solicitante (confirmado uma vez por link, sem senha) ---------- */
+  const voltaLink=()=>location.origin+location.pathname;
+  async function confirmaLinkEmail(u){
+    if(!auth.isSignInWithEmailLink(location.href))return false;
+    let email="";try{email=localStorage.getItem("emailParaLink")||""}catch(x){}
+    if(!email)email=(prompt("Confirme o seu e-mail para concluir:")||"").trim().toLowerCase();
+    const limpa=()=>history.replaceState(null,"",voltaLink());
+    if(!email){limpa();return false}
+    try{
+      const cred=firebase.auth.EmailAuthProvider.credentialWithLink(email,location.href);
+      /* Conta anônima vira a conta do e-mail: os pedidos já feitos neste navegador continuam dela. */
+      if(u.isAnonymous){try{await u.linkWithCredential(cred)}catch(x){if(x.code==="auth/credential-already-in-use"||x.code==="auth/email-already-in-use")await auth.signInWithCredential(cred);else throw x}}
+      else await auth.signInWithEmailLink(email,location.href);
+      try{localStorage.removeItem("emailParaLink");sessionStorage.setItem("emailOk",email)}catch(x){}
+    }catch(x){try{sessionStorage.setItem("emailErro",traduz(x))}catch(y){}}
+    limpa();location.reload();return true;
+  }
+  function barraEmail(u){
+    if($("#email-bar"))return;
+    const b=document.createElement("div");b.id="email-bar";b.className="panel";
+    const ref=$("#banner");if(!ref)return;ref.after(b);
+    let ok="",erro="";try{ok=sessionStorage.getItem("emailOk")||"";erro=sessionStorage.getItem("emailErro")||"";sessionStorage.removeItem("emailOk");sessionStorage.removeItem("emailErro")}catch(x){}
+    const esc=t=>String(t).replace(/[<>&"]/g,"");
+    if(!u.isAnonymous&&u.email){
+      const e=u.email.toLowerCase();
+      fs.doc("contatos/"+u.uid).set({email:e,em:Date.now()}).catch(()=>{});
+      b.innerHTML=`<p class="eb-txt">${ok?"E-mail confirmado. ":""}As atualizações dos seus pedidos vão para <b>${esc(e)}</b>.</p><button type="button" class="eb-link" id="eb-trocar">Usar outro e-mail</button>`;
+      $("#eb-trocar").onclick=()=>{if(confirm("Sair deste e-mail? Os pedidos dele deixam de aparecer aqui até você confirmar de novo."))window.appSair()};
+      return;
+    }
+    let fechado=false;try{fechado=localStorage.getItem("emailBarFechada")==="1"}catch(x){}
+    if(fechado&&!erro){b.remove();return}
+    b.innerHTML=`<form class="eb-form" novalidate><p class="eb-txt"><b>Receba as atualizações por e-mail.</b> Confirme seu e-mail da Protect uma vez e veja seus pedidos em qualquer aparelho.</p>
+      <div class="eb-row"><input type="email" id="eb-email" placeholder="nome@protectepi.com.br" autocomplete="email"><button class="btn primary" id="eb-btn" type="submit">Enviar link</button><button type="button" class="eb-link" id="eb-fechar">Agora não</button></div>
+      <p class="eb-msg" id="eb-msg" role="status">${esc(erro)}</p></form>`;
+    const m=$("#eb-msg");
+    $("#eb-fechar").onclick=()=>{try{localStorage.setItem("emailBarFechada","1")}catch(x){}b.remove()};
+    b.querySelector("form").onsubmit=async ev=>{ev.preventDefault();let e=$("#eb-email").value.trim().toLowerCase();if(e&&!e.includes("@"))e+=DOMINIO;
+      if(!e||(!e.endsWith(DOMINIO)&&!FORA_DO_DOMINIO.includes(e))){m.textContent="Use o seu e-mail "+DOMINIO+".";return}
+      const bt=$("#eb-btn");bt.disabled=true;bt.textContent="Enviando…";
+      try{await auth.sendSignInLinkToEmail(e,{url:voltaLink(),handleCodeInApp:true});try{localStorage.setItem("emailParaLink",e)}catch(x){}
+        m.textContent="Enviamos um link para "+e+". Abra o e-mail neste aparelho e clique no link para confirmar.";bt.textContent="Reenviar link"}
+      catch(err){m.textContent=traduz(err);bt.textContent="Enviar link"}finally{bt.disabled=false}};
+  }
+
+  /* ---------- Aviso por e-mail quando a gestão atualiza um pedido ---------- */
+  const ROTULO={aberta:"Aberta",em_andamento:"Em andamento",concluida:"Concluída",pendente:"Aguardando aprovação",aprovada:"Aprovada",recusada:"Recusada",aberto:"Aberto",respondido:"Respondido",encerrado:"Encerrado",recusado:"Recusado"};
+  function comAviso(ref,caminho){
+    return new Proxy(ref,{get(t,k){
+      if(k==="set")return async(dados,...resto)=>{let antes={};try{const a=await t.get();antes=a.exists?a.data():{}}catch(x){}
+        const r=await t.set(dados,...resto);avisaPorEmail(caminho,antes,dados).catch(e=>console.warn("Aviso por e-mail:",e));return r};
+      const v=t[k];return typeof v==="function"?v.bind(t):v}});
+  }
+  async function avisaPorEmail(caminho,antes,depois){
+    const url=window.EMAIL_URL;if(!url)return;
+    const [col,id]=caminho.split("/");
+    const linhas=[];
+    if(depois.status&&depois.status!==antes.status)linhas.push("Situação: "+(ROTULO[depois.status]||depois.status));
+    if(depois.aprovada&&!antes.aprovada)linhas.push("A compra foi aprovada.");
+    const motivo=depois.motivoRecusa&&depois.motivoRecusa!==antes.motivoRecusa?depois.motivoRecusa:"";
+    if(motivo)linhas.push("Motivo da recusa: "+motivo);
+    const novas=(depois.respostas||[]).slice((antes.respostas||[]).length);
+    for(const r of novas)if(r&&r.texto)linhas.push("Resposta da gestão: "+r.texto);
+    if(!linhas.length)return;
+    const origens=col==="chamados_gestao"?["chamados"]:["solicitacoes","reservas"];
+    let pedido=null;for(const o of origens){const d=await fs.doc(o+"/"+id).get();if(d.exists){pedido=d.data();break}}
+    if(!pedido)return;
+    let para=pedido.autorEmail||"";
+    if(!para&&pedido.autor){try{const c=await fs.doc("contatos/"+pedido.autor).get();if(c.exists)para=c.data().email||""}catch(x){}}
+    if(!para)return;
+    const prot=pedido.protocolo||id;
+    const texto=`Olá${pedido.nome?", "+pedido.nome:""}.\n\nSeu pedido ${prot} na Central de Solicitações da Protect foi atualizado.\n\n${linhas.join("\n")}\n\nVeja os detalhes em Minhas solicitações:\n${voltaLink()}`;
+    await fetch(url,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},body:JSON.stringify({chave:window.EMAIL_CHAVE||"",para,assunto:"Atualização do pedido "+prot,texto})});
+  }
 
   /* ---------- Login da gestão (dentro da aba Painel de Gestão) ---------- */
   function preparaLoginGestao(){
@@ -149,7 +228,7 @@
       const e=email(),s=sen.value;if(!e||!s){diz("Preencha e-mail e senha.");return}
       if(modo==="criar"&&!e.endsWith(DOMINIO)&&!FORA_DO_DOMINIO.includes(e)){diz("Use um e-mail "+DOMINIO+".");return}
       btn.disabled=true;btn.textContent="Aguarde…";
-      try{try{localStorage.setItem("aba","gestao")}catch(x){}
+      try{try{localStorage.setItem("aba","gestao");sessionStorage.setItem("viaGestao","1")}catch(x){}
         if(modo==="criar"){const c=await auth.createUserWithEmailAndPassword(e,s);try{await c.user.sendEmailVerification()}catch(x){}}
         else await auth.signInWithEmailAndPassword(e,s)}
       catch(err){diz(traduz(err));btn.disabled=false;btn.textContent=modo==="criar"?"Criar conta":"Entrar"}

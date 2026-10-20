@@ -9,3 +9,8 @@ window.FIREBASE_CONFIG={
   appId:"1:849802785002:web:23dfa781003b36ea9ae793",
   measurementId:"G-CLYPPNMTKP"
 };
+
+/* Envio de e-mails de atualização para os solicitantes (Google Apps Script da conta planejamentoprotect@gmail.com).
+   Cole aqui o endereço do app da Web do script e a mesma chave que está no script. Vazio = não envia e-mail. */
+window.EMAIL_URL="";
+window.EMAIL_CHAVE="";

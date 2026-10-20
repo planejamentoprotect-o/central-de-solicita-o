@@ -40,6 +40,15 @@ head+='''<style>
 .al-links{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:6px}
 .al-links button{background:none;border:0;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;padding:4px 0}
 #who{cursor:pointer}
+/* Barra de e-mail do solicitante */
+#email-bar{padding:14px 18px;margin:0 0 18px;display:flex;gap:10px 16px;align-items:center;flex-wrap:wrap}
+#email-bar .eb-form{display:grid;gap:8px;width:100%}
+#email-bar .eb-txt{margin:0;font-size:14px;color:var(--muted)}#email-bar .eb-txt b{color:var(--ink)}
+#email-bar .eb-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+#email-bar input{flex:1 1 220px;min-width:0;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;padding:10px 12px;min-height:42px;font:inherit}
+#email-bar .eb-link{background:none;border:0;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;padding:6px 0}
+#email-bar .eb-msg{margin:0;font-size:13px;color:var(--muted);min-height:0}
+body:has(#v-gestao:not([hidden])) #email-bar{display:none}
 @media (display-mode: standalone){body{padding-top:env(safe-area-inset-top)}}
 </style>
 <script src="'''+FB+'''firebase-app-compat.js"></script>
@@ -57,7 +66,7 @@ assert "/_blob/" not in s
 rep('if(store("aba")==="gestao")setView("gestao");','if(store("aba")==="gestao"&&window.__APP?.papel)setView("gestao");')
 rep('$("#g-sair").onclick=()=>{','$("#g-sair").onclick=()=>{if(window.appSair){window.appSair();return}')
 # pílula do topo: mostra o e-mail e permite sair
-rep('$("#whoTxt").textContent=!db?"Não conectado":"Conectado";','$("#whoTxt").textContent=!db?"Não conectado":(window.__APP?.email||"Conectado");if(window.appSair&&window.__APP?.email){$("#who").onclick=()=>{if(confirm("Sair da conta de gestão?"))window.appSair()};$("#who").title="Clique para sair"}')
+rep('$("#whoTxt").textContent=!db?"Não conectado":"Conectado";','$("#whoTxt").textContent=!db?"Não conectado":(window.__APP?.email||"Conectado");if(window.appSair&&window.__APP?.email){$("#who").onclick=()=>{if(confirm("Sair desta conta?"))window.appSair()};$("#who").title="Clique para sair"}')
 # protocolo dos chamados: contador no banco (o solicitante não lê os chamados dos outros)
 rep('const snap=await S.db.collection("chamados").get();\n    const seq=snap.docs.reduce((m,x)=>{const k=/^CH-(\\d+)-(\\d+)$/.exec(x.id);return k&&+k[1]===ano?Math.max(m,+k[2]):m},0)+1;',
     'const seq=await S.db.runTransaction(async tx=>{const r=S.db.doc("contadores/chamados_"+ano),c=await tx.get(r),n=(c.exists?c.data().n:0)+1;tx.set(r,{n});return n});')

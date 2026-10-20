@@ -344,6 +344,15 @@ aside.side ol{margin:8px 0 0;padding-left:20px;color:var(--muted);font-size:14px
 .al-links{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:6px}
 .al-links button{background:none;border:0;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;padding:4px 0}
 #who{cursor:pointer}
+/* Barra de e-mail do solicitante */
+#email-bar{padding:14px 18px;margin:0 0 18px;display:flex;gap:10px 16px;align-items:center;flex-wrap:wrap}
+#email-bar .eb-form{display:grid;gap:8px;width:100%}
+#email-bar .eb-txt{margin:0;font-size:14px;color:var(--muted)}#email-bar .eb-txt b{color:var(--ink)}
+#email-bar .eb-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+#email-bar input{flex:1 1 220px;min-width:0;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;padding:10px 12px;min-height:42px;font:inherit}
+#email-bar .eb-link{background:none;border:0;color:var(--accent);font:inherit;font-size:13px;cursor:pointer;padding:6px 0}
+#email-bar .eb-msg{margin:0;font-size:13px;color:var(--muted);min-height:0}
+body:has(#v-gestao:not([hidden])) #email-bar{display:none}
 @media (display-mode: standalone){body{padding-top:env(safe-area-inset-top)}}
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -1378,7 +1387,7 @@ refreshR();
   if(S.canWrite===false)S.readOnly=true;
   if(!assets)["manutencao","maquinas","equipamentos","compras","chamados"].forEach(p=>{$(`#${p}-drop`).hidden=true;$(`#${p}-fotos-na`).hidden=false});
   $("#who").classList.toggle("on",!!db);
-  $("#whoTxt").textContent=!db?"Não conectado":(window.__APP?.email||"Conectado");if(window.appSair&&window.__APP?.email){$("#who").onclick=()=>{if(confirm("Sair da conta de gestão?"))window.appSair()};$("#who").title="Clique para sair"}
+  $("#whoTxt").textContent=!db?"Não conectado":(window.__APP?.email||"Conectado");if(window.appSair&&window.__APP?.email){$("#who").onclick=()=>{if(confirm("Sair desta conta?"))window.appSair()};$("#who").title="Clique para sair"}
   showBanner();
   if(!db)return;
   try{const g=sessionStorage.getItem("gestor");if(g==="gestor"||g==="master"){S.gestorOk=true;S.papel=g;S.conta=sessionStorage.getItem("gestorConta")||""}}catch(e){}

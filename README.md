@@ -34,3 +34,12 @@ App web instalável (PWA) da Central de Solicitações da Protect EPI. Roda no n
 ## Atualizar o app depois
 
 Edite `index.html` (ou gere de novo com `tools/build_app.py`) e rode `firebase deploy`. Troque `CACHE` em `sw.js` para forçar a atualização nos aparelhos.
+
+## Atualizações por e-mail para o solicitante
+
+1. Authentication > Método de login > E-mail/senha: ligue também "Link do e-mail (login sem senha)".
+2. Publique de novo o `firestore.rules` (regra `contatos`).
+3. Em script.google.com, logado como planejamentoprotect@gmail.com, crie um projeto com o conteúdo de `tools/email-apps-script.gs`, troque a `CHAVE`, e implante como App da Web (Executar como: eu; Quem pode acessar: Qualquer pessoa).
+4. Coloque a URL `/exec` e a chave em `config.js` (`EMAIL_URL`, `EMAIL_CHAVE`).
+
+O solicitante confirma o e-mail uma vez pelo link; depois cada resposta da gestão é enviada para esse e-mail (só endereços @protectepi.com.br, até 30 por hora).
