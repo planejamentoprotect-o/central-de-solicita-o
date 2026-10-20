@@ -53,12 +53,14 @@ s=body
 # fotos: vêm do Firestore; o app.js preenche os elementos com data-foto
 s=s.replace('href="/_blob/${esc(id)}"','href="${esc(blobUrl(id))}" data-foto="${esc(id)}"').replace('src="/_blob/${esc(id)}"','src="${esc(blobUrl(id))}" data-foto="${esc(id)}"')
 assert "/_blob/" not in s
-# painel de gestão só para quem tem papel; botão sair do painel = sair do app
-rep('$("#t-gestao").hidden=false;','$("#t-gestao").hidden=!(window.__APP?window.__APP.papel:true);')
-rep('if(store("aba")==="gestao")setView("gestao");','if(store("aba")==="gestao"&&!$("#t-gestao").hidden)setView("gestao");')
+# aba Painel de Gestão sempre visível (o login fica dentro dela); só abre sozinha para quem já entrou como gestor
+rep('if(store("aba")==="gestao")setView("gestao");','if(store("aba")==="gestao"&&window.__APP?.papel)setView("gestao");')
 rep('$("#g-sair").onclick=()=>{','$("#g-sair").onclick=()=>{if(window.appSair){window.appSair();return}')
 # pílula do topo: mostra o e-mail e permite sair
-rep('$("#whoTxt").textContent=!db?"Não conectado":"Conectado";','$("#whoTxt").textContent=!db?"Não conectado":(window.__APP?.email||"Conectado");if(window.appSair)$("#who").onclick=()=>{if(confirm("Sair da sua conta?"))window.appSair()};$("#who").title="Clique para sair";')
+rep('$("#whoTxt").textContent=!db?"Não conectado":"Conectado";','$("#whoTxt").textContent=!db?"Não conectado":(window.__APP?.email||"Conectado");if(window.appSair&&window.__APP?.email){$("#who").onclick=()=>{if(confirm("Sair da conta de gestão?"))window.appSair()};$("#who").title="Clique para sair"}')
+# protocolo dos chamados: contador no banco (o solicitante não lê os chamados dos outros)
+rep('const snap=await S.db.collection("chamados").get();\n    const seq=snap.docs.reduce((m,x)=>{const k=/^CH-(\\d+)-(\\d+)$/.exec(x.id);return k&&+k[1]===ano?Math.max(m,+k[2]):m},0)+1;',
+    'const seq=await S.db.runTransaction(async tx=>{const r=S.db.doc("contadores/chamados_"+ano),c=await tx.get(r),n=(c.exists?c.data().n:0)+1;tx.set(r,{n});return n});')
 # e-mail do autor junto do id (ajuda a vincular contas e a migrar)
 s=s.replace('autor:S.uid||null','autor:S.uid||null,autorEmail:window.__APP?.email||null')
 s+='\n</body></html>\n'

@@ -1,38 +1,46 @@
 rules_version = '2';
 // Regras do banco da Central. Os papéis ficam em config/papeis:
 //   { gestores: ["administrativo@protectepi.com.br", ...], master: ["gustavo@protectepi.com.br"], extras: ["alguem@gmail.com"] }
+// Solicitantes entram sem login (conta anônima do Firebase). Só a gestão entra com e-mail e senha.
 service cloud.firestore {
   match /databases/{db}/documents {
     function signed() { return request.auth != null; }
+    function temEmail() { return signed() && request.auth.token.get('email', null) != null && request.auth.token.get('email_verified', false) == true; }
     function email() { return request.auth.token.email.lower(); }
     function papeis() { return get(/databases/$(db)/documents/config/papeis).data; }
-    function protect() {
-      return signed() && request.auth.token.email_verified == true &&
-        (email().matches('.*@protectepi[.]com[.]br$') || email() in papeis().get('extras', []));
-    }
+    function protect() { return temEmail() && (email().matches('.*@protectepi[.]com[.]br$') || email() in papeis().get('extras', [])); }
     function master() { return protect() && email() in papeis().get('master', []); }
     function gestor() { return protect() && (email() in papeis().get('gestores', []) || master()); }
     function souAutor() { return request.resource.data.autor == request.auth.uid; }
+    function meu() { return resource.data.autor == request.auth.uid; }
 
     // Dono do app (planejamentoprotect@gmail.com, definido pelo Thomas em 2026-10-19): só ele cria a lista de papéis na primeira vez.
-    function dono() { return signed() && request.auth.token.email_verified == true && email() == 'planejamentoprotect@gmail.com'; }
+    function dono() { return temEmail() && email() == 'planejamentoprotect@gmail.com'; }
     match /config/{d} { allow read: if signed(); allow write: if master() || dono(); }
 
-    // Pedidos: qualquer pessoa da Protect cria em seu nome; só gestão altera; só master exclui.
-    match /solicitacoes/{id} { allow read: if protect(); allow create: if (protect() && souAutor()) || master() || dono(); allow update: if gestor(); allow delete: if master(); }
-    match /reservas/{id}     { allow read: if protect(); allow create: if (protect() && souAutor()) || master() || dono(); allow update: if gestor(); allow delete: if master(); }
-    match /chamados/{id}     { allow read: if protect(); allow create: if (protect() && souAutor()) || master() || dono(); allow update: if gestor(); allow delete: if master(); }
+    // Pedidos e chamados: qualquer pessoa cria em seu nome e vê só os seus; a gestão vê e altera todos; só master exclui.
+    match /solicitacoes/{id} { allow read: if gestor() || (signed() && meu()); allow create: if (signed() && souAutor()) || master() || dono(); allow update: if gestor(); allow delete: if master(); }
+    match /chamados/{id}     { allow read: if gestor() || (signed() && meu()); allow create: if (signed() && souAutor()) || master() || dono(); allow update: if gestor(); allow delete: if master(); }
+    // Reservas: todos leem (a agenda das salas mostra os horários ocupados).
+    match /reservas/{id}     { allow read: if signed(); allow create: if (signed() && souAutor()) || master() || dono(); allow update: if gestor(); allow delete: if master(); }
 
     // Decisões, respostas, recusas e bloqueios de sala: só gestão grava.
-    match /decisoes/{id}        { allow read: if protect(); allow write: if gestor() || dono(); }
-    match /chamados_gestao/{id} { allow read: if protect(); allow write: if gestor() || dono(); }
-    match /bloqueios/{id}       { allow read: if protect(); allow write: if gestor() || dono(); }
+    match /decisoes/{id}        { allow read: if signed(); allow write: if gestor() || dono(); }
+    match /chamados_gestao/{id} { allow read: if signed(); allow write: if gestor() || dono(); }
+    match /bloqueios/{id}       { allow read: if signed(); allow write: if gestor() || dono(); }
 
-    // Fotos anexadas (JPEG reduzido guardado no próprio banco): quem é da Protect envia e vê; só master apaga.
-    match /fotos/{id} { allow read: if protect(); allow create: if protect() && request.resource.data.data is string && request.resource.data.data.size() < 1000000; allow delete: if master(); }
+    // Fotos anexadas (JPEG reduzido guardado no próprio banco): quem envia um pedido grava; só master apaga.
+    match /fotos/{id} { allow read: if signed(); allow create: if signed() && request.resource.data.data is string && request.resource.data.data.size() < 1000000; allow delete: if master(); }
+
+    // Numeração dos chamados (CH-ano-0001): só pode avançar de um em um.
+    match /contadores/{id} {
+      allow read: if signed();
+      allow create: if (signed() && request.resource.data.n == 1) || dono();
+      allow update: if (signed() && request.resource.data.n == resource.data.n + 1) || dono();
+    }
 
     // Travas curtas para evitar reservas e protocolos duplicados.
-    match /travas/{id} { allow read, write: if protect(); }
+    match /travas/{id} { allow read, write: if signed(); }
 
     // Dados privados de cada pessoa (avisos já vistos).
     match /data/users/{uid}/{resto=**} { allow read, write: if signed() && request.auth.uid == uid; }

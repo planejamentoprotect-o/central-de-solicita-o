@@ -51,7 +51,7 @@
   window.salvaFoto=async(id,blob)=>{const data=await reduz(blob);await fs.doc("fotos/"+id).set({data,criadoEm:Date.now(),por:auth.currentUser?.uid||null});return id};
   const assets={async upload(blob){const id=novoId();await window.salvaFoto(id,blob);return{id,url:VAZIA}}};
   function carregaFoto(id){
-    let u=cacheFoto.get(id);if(u)return u;
+    let u=cacheFoto.get(id);if(u)return Promise.resolve(u);
     u=fs.doc("fotos/"+id).get().then(async s=>{if(!s.exists)throw new Error("sem foto");const b=await (await fetch(s.data().data)).blob();const url=URL.createObjectURL(b);cacheFoto.set(id,url);return url}).catch(e=>{cacheFoto.delete(id);throw e});
     cacheFoto.set(id,u);return u;
   }
@@ -69,28 +69,71 @@
   }};
 
   let papel=null; // null | "gestor" | "master"
+  /* Solicitante (sem login) só lê os próprios pedidos e chamados; a gestão lê tudo. */
+  const PRIVADAS=new Set(["solicitacoes","chamados"]);
+  const db=new Proxy(fs,{get(t,k){
+    if(k==="collection")return n=>{const c=t.collection(n);if(!PRIVADAS.has(n)||papel)return c;
+      const meus=()=>c.where("autor","==",auth.currentUser?.uid||"-");
+      return{doc:(...a)=>c.doc(...a),where:(...a)=>meus().where(...a),get:(...a)=>meus().get(...a),onSnapshot:(...a)=>meus().onSnapshot(...a)}};
+    const v=t[k];return typeof v==="function"?v.bind(t):v}});
   const user={id:async()=>auth.currentUser?.uid||null,canEdit:async()=>!!papel,can:async()=>true,email:()=>auth.currentUser?.email||""};
 
   let pronto;const prontoP=new Promise(r=>pronto=r);
-  window.claude={use:async n=>{await prontoP;return n==="db"?fs:n==="user"?user:n==="assets"?assets:n==="downloads"?downloads:null}};
+  window.claude={use:async n=>{await prontoP;return n==="db"?db:n==="user"?user:n==="assets"?assets:n==="downloads"?downloads:null}};
 
+  /* Solicitantes entram sem login (conta anônima do Firebase, guardada no navegador).
+     Só a gestão usa e-mail e senha, pelo formulário dentro da aba Painel de Gestão. */
+  let iniciado=false;
   auth.onAuthStateChanged(async u=>{
-    if(!u){mostraLogin();return}
-    if(!u.emailVerified){mostraVerificacao(u);return}
-    try{
-      const ref=fs.doc("config/papeis"),p=await ref.get(),e=u.email.toLowerCase();let m=p.exists?p.data():{};
-      /* Primeiro acesso do dono: cria a lista de papéis com os gestores da Central antiga. */
-      if(!p.exists&&e===DONO){m=PAPEIS_INICIAIS;try{await ref.set(m)}catch(x){}}
-      papel=(m.master||[]).includes(e)?"master":(m.gestores||[]).includes(e)?"gestor":null;
-    }catch(e){papel=null}
-    try{if(papel){sessionStorage.setItem("gestor",papel);sessionStorage.setItem("gestorConta",u.email.toLowerCase())}else{sessionStorage.removeItem("gestor");sessionStorage.removeItem("gestorConta")}}catch(e){}
-    window.__APP={email:u.email.toLowerCase(),papel};
+    if(iniciado){location.reload();return} // trocou de conta (entrou ou saiu da gestão)
+    if(!u){try{await auth.signInAnonymously()}catch(e){mostraLogin("Não foi possível abrir a Central ("+(e.code||e.message)+"). Ative o login Anônimo no Firebase.",true)}return}
+    if(!u.isAnonymous&&!u.emailVerified){mostraVerificacao(u);return}
+    papel=null;let e=null;
+    if(!u.isAnonymous){
+      e=u.email.toLowerCase();
+      try{
+        const ref=fs.doc("config/papeis"),p=await ref.get();let m=p.exists?p.data():{};
+        /* Primeiro acesso do dono: cria a lista de papéis com os gestores da Central antiga. */
+        if(!p.exists&&e===DONO){m=PAPEIS_INICIAIS;try{await ref.set(m)}catch(x){}}
+        papel=(m.master||[]).includes(e)?"master":(m.gestores||[]).includes(e)?"gestor":null;
+      }catch(x){papel=null}
+      if(!papel){try{sessionStorage.setItem("gestaoMsg","A conta "+e+" não tem acesso ao Painel de Gestão.")}catch(x){}await auth.signOut();return}
+    }
+    try{if(papel){sessionStorage.setItem("gestor",papel);sessionStorage.setItem("gestorConta",e)}else{sessionStorage.removeItem("gestor");sessionStorage.removeItem("gestorConta")}}catch(x){}
+    window.__APP={email:e,papel,anonimo:u.isAnonymous};
     escondeLogin();
     document.documentElement.classList.toggle("app-gestor",!!papel);
-    pronto();
+    iniciado=true;pronto();
+    preparaLoginGestao();
   });
 
-  window.appSair=async()=>{try{sessionStorage.clear()}catch(e){}await auth.signOut();location.reload()};
+  window.appSair=async()=>{try{sessionStorage.clear();localStorage.setItem("aba","manutencao")}catch(e){}await auth.signOut()};
+
+  /* ---------- Login da gestão (dentro da aba Painel de Gestão) ---------- */
+  function preparaLoginGestao(){
+    const f=$("#form-login");if(!f)return;
+    const msg=$("#lg-msg"),btn=$("#lg-btn"),ent=$("#lg-email"),sen=$("#lg-senha");
+    $("#g-login .lede").textContent="Entre com seu e-mail da Protect e sua senha.";
+    ent.placeholder="nome@protectepi.com.br";
+    try{const m=sessionStorage.getItem("gestaoMsg");if(m){msg.innerHTML=`<p class="al-msg">${m.replace(/[<>&"]/g,"")}</p>`;sessionStorage.removeItem("gestaoMsg");document.querySelector("#t-gestao")?.click()}}catch(e){}
+    let modo="entrar";
+    const links=document.createElement("div");links.className="al-links";links.innerHTML=`<button type="button" id="lg-criar">Primeiro acesso? Criar conta</button><button type="button" id="lg-esqueci">Esqueci a senha</button>`;
+    f.appendChild(links);
+    const diz=(t,ok)=>{msg.innerHTML=`<p class="al-msg${ok?" ok":""}">${t.replace(/[<>&"]/g,"")}</p>`};
+    const email=()=>{let e=ent.value.trim().toLowerCase();if(e&&!e.includes("@"))e+=DOMINIO;return e};
+    $("#lg-criar").onclick=()=>{modo=modo==="criar"?"entrar":"criar";btn.textContent=modo==="criar"?"Criar conta":"Entrar";$("#lg-criar").textContent=modo==="criar"?"Já tenho conta. Entrar":"Primeiro acesso? Criar conta";msg.innerHTML=""};
+    $("#lg-esqueci").onclick=async()=>{const e=email();if(!e){diz("Digite seu e-mail acima para receber o link.");return}
+      try{await auth.sendPasswordResetEmail(e);diz("Enviamos um link para "+e+" redefinir a senha.",true)}catch(err){diz(traduz(err))}};
+    f.addEventListener("submit",async ev=>{ev.preventDefault();ev.stopImmediatePropagation();msg.innerHTML="";
+      const e=email(),s=sen.value;if(!e||!s){diz("Preencha e-mail e senha.");return}
+      if(modo==="criar"&&!e.endsWith(DOMINIO)&&!FORA_DO_DOMINIO.includes(e)){diz("Use um e-mail "+DOMINIO+".");return}
+      btn.disabled=true;btn.textContent="Aguarde…";
+      try{try{localStorage.setItem("aba","gestao")}catch(x){}
+        if(modo==="criar"){const c=await auth.createUserWithEmailAndPassword(e,s);try{await c.user.sendEmailVerification()}catch(x){}}
+        else await auth.signInWithEmailAndPassword(e,s)}
+      catch(err){diz(traduz(err));btn.disabled=false;btn.textContent=modo==="criar"?"Criar conta":"Entrar"}
+    },true);
+  }
 
   /* ---------- Tela de login ---------- */
   function mostraLogin(msg,erroFixo){
