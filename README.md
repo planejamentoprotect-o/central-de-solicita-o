@@ -24,7 +24,7 @@ App web instalável (PWA) da Central de Solicitações da Protect EPI. Roda no n
 ## Colocar no ar (uma vez)
 
 1. No [Console do Firebase](https://console.firebase.google.com), crie o projeto e ative:
-   Authentication > E-mail/senha e Anônimo, e Firestore Database. Solicitantes entram sem login (conta anônima); só a gestão usa e-mail e senha, dentro da aba Painel de Gestão.
+   Authentication > E-mail/senha com "Link do e-mail (login sem senha)", e Firestore Database (banco "(default)"). Todos confirmam o e-mail @protectepi.com.br uma vez por aparelho (link sem senha); a gestão também pode entrar com senha. O login Anônimo pode ficar desligado.
 2. Registre um App da Web e copie o `firebaseConfig` para `config.js`.
 3. O dono do app (planejamentoprotect@gmail.com) já está em `firestore.rules`.
 4. Publique: `npm i -g firebase-tools`, `firebase login`, `firebase use --add`, `firebase deploy`.

@@ -103,9 +103,10 @@
   let iniciado=false;
   auth.onAuthStateChanged(async u=>{
     if(iniciado){location.reload();return} // trocou de conta (entrou ou saiu da gestão)
-    if(u&&await confirmaLinkEmail(u))return;
-    if(!u){try{await auth.signInAnonymously()}catch(e){mostraLogin("Não foi possível abrir a Central ("+(e.code||e.message)+"). Ative o login Anônimo no Firebase.",true)}return}
-    if(!u.isAnonymous&&!u.emailVerified){mostraVerificacao(u);return}
+    if(await confirmaLinkEmail(u))return;
+    /* Só entra quem confirmou o e-mail da Protect (link sem senha, uma vez por aparelho) ou a gestão com senha. */
+    if(!u||u.isAnonymous){mostraPortao();return}
+    if(!u.emailVerified){mostraVerificacao(u);return}
     papel=null;let e=null;
     if(!u.isAnonymous){
       e=u.email.toLowerCase();
@@ -149,7 +150,7 @@
     try{
       const cred=firebase.auth.EmailAuthProvider.credentialWithLink(email,location.href);
       /* Conta anônima vira a conta do e-mail: os pedidos já feitos neste navegador continuam dela. */
-      if(u.isAnonymous){try{await u.linkWithCredential(cred)}catch(x){if(x.code==="auth/credential-already-in-use"||x.code==="auth/email-already-in-use")await auth.signInWithCredential(cred);else throw x}}
+      if(u&&u.isAnonymous){try{await u.linkWithCredential(cred)}catch(x){if(x.code==="auth/credential-already-in-use"||x.code==="auth/email-already-in-use")await auth.signInWithCredential(cred);else throw x}}
       else await auth.signInWithEmailLink(email,location.href);
       try{localStorage.removeItem("emailParaLink");sessionStorage.setItem("emailOk",email)}catch(x){}
     }catch(x){try{sessionStorage.setItem("emailErro",traduz(x))}catch(y){}}
@@ -283,7 +284,7 @@
         try{if(modo==="criar"){const c=await auth.createUserWithEmailAndPassword(e,s);try{await c.user.sendEmailVerification()}catch(x){}}else await auth.signInWithEmailAndPassword(e,s)}
         catch(err){m.textContent=traduz(err)}finally{b.disabled=false;b.textContent=modo==="criar"?"Criar conta":"Entrar"}};
     }
-    ov.hidden=false;ov.querySelector("form").hidden=false;const vv=ov.querySelector(".al-verif");if(vv)vv.hidden=true;
+    ov.hidden=false;ov.querySelector("form").hidden=false;const vv=ov.querySelector(".al-verif");if(vv)vv.hidden=true;const pp=ov.querySelector(".al-portao");if(pp)pp.hidden=true;
     if(msg){const m=ov.querySelector("#al-msg");m.textContent=msg;if(erroFixo)ov.querySelectorAll("input,button").forEach(x=>x.disabled=true)}
   }
   /* Conta nova: precisa confirmar o e-mail antes de usar (garante que é mesmo da Protect). */
@@ -299,11 +300,33 @@
     v.querySelector("#av-reenv").onclick=async()=>{try{await u.sendEmailVerification();m.className="al-msg ok";m.textContent="E-mail reenviado."}catch(err){m.className="al-msg";m.textContent=traduz(err)}};
     v.querySelector("#av-sair").onclick=()=>window.appSair();
   }
+  function mostraPortao(){
+    mostraLogin();const ov=$("#app-login"),f=ov.querySelector("form");f.hidden=true;
+    let v=ov.querySelector(".al-portao");if(!v){v=document.createElement("div");v.className="al-portao";ov.appendChild(v)}
+    v.hidden=false;
+    let aviso="";try{aviso=sessionStorage.getItem("emailErro")||sessionStorage.getItem("gestaoMsg")||"";sessionStorage.removeItem("emailErro");sessionStorage.removeItem("gestaoMsg")}catch(x){}
+    const esc=t=>String(t).replace(/[<>&"]/g,"");
+    v.innerHTML=`<form class="al-card" novalidate>${ov.querySelector(".al-mark")?.outerHTML||""}<h1>Central de Solicitações</h1>
+      <p class="al-sub">Para usar a Central, confirme seu e-mail da Protect. É uma vez só neste aparelho, sem senha, e as atualizações dos seus pedidos chegam nesse e-mail.</p>
+      <label for="ap-email">E-mail</label><input id="ap-email" type="email" autocomplete="email" placeholder="nome@protectepi.com.br" required>
+      <p class="al-msg" id="ap-msg" role="alert">${esc(aviso)}</p>
+      <button class="al-btn" id="ap-btn" type="submit">Enviar link de acesso</button>
+      <div class="al-links"><button type="button" id="ap-senha">Sou da gestão: entrar com senha</button></div></form>`;
+    const m=v.querySelector("#ap-msg"),bt=v.querySelector("#ap-btn");
+    v.querySelector("#ap-senha").onclick=()=>{try{sessionStorage.setItem("viaGestao","1")}catch(x){}v.hidden=true;f.hidden=false;ov.querySelector("#al-email").focus()};
+    v.querySelector("form").onsubmit=async ev=>{ev.preventDefault();m.className="al-msg";
+      let e=v.querySelector("#ap-email").value.trim().toLowerCase();if(e&&!e.includes("@"))e+=DOMINIO;
+      if(!e||(!e.endsWith(DOMINIO)&&!FORA_DO_DOMINIO.includes(e))){m.textContent="Use o seu e-mail "+DOMINIO+".";return}
+      bt.disabled=true;bt.textContent="Enviando…";
+      try{await auth.sendSignInLinkToEmail(e,{url:voltaLink(),handleCodeInApp:true});try{localStorage.setItem("emailParaLink",e)}catch(x){}
+        m.className="al-msg ok";m.textContent="Enviamos um link para "+e+". Abra o e-mail neste aparelho e clique no link. Se não encontrar, olhe o lixo eletrônico.";bt.textContent="Reenviar link"}
+      catch(err){m.textContent=traduz(err);bt.textContent="Enviar link de acesso"}finally{bt.disabled=false}};
+  }
   function escondeLogin(){const ov=$("#app-login");if(ov)ov.hidden=true}
   function traduz(err){const c=err?.code||"";return({
     "auth/invalid-credential":"E-mail ou senha incorretos.","auth/wrong-password":"E-mail ou senha incorretos.","auth/user-not-found":"Não encontramos uma conta com esse e-mail.",
     "auth/email-already-in-use":"Já existe uma conta com esse e-mail. Use Entrar.","auth/weak-password":"A senha precisa ter pelo menos 6 caracteres.",
-    "auth/invalid-email":"E-mail inválido.","auth/too-many-requests":"Muitas tentativas. Aguarde alguns minutos.","auth/network-request-failed":"Sem conexão com a internet."
+    "auth/invalid-email":"E-mail inválido.","auth/too-many-requests":"Muitas tentativas. Aguarde alguns minutos.","auth/network-request-failed":"Sem conexão com a internet.","auth/invalid-action-code":"Esse link já foi usado ou expirou. Peça um novo.","auth/expired-action-code":"Esse link expirou. Peça um novo."
   })[c]||("Não foi possível entrar ("+(c||err?.message||"erro")+").")}
 
   /* ---------- PWA ---------- */
