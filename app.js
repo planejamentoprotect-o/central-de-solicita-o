@@ -20,7 +20,8 @@
   }
   firebase.initializeApp(cfg);
   const auth=firebase.auth(),fs=firebase.firestore();
-  try{fs.settings({ignoreUndefinedProperties:true,merge:true})}catch(e){}
+  // long polling automático: em algumas redes (antivírus, proxy) a conexão normal do Firestore trava e as gravações nunca terminam
+  try{fs.settings({ignoreUndefinedProperties:true,experimentalAutoDetectLongPolling:true,merge:true})}catch(e){}
   try{fs.enablePersistence({synchronizeTabs:true}).catch(()=>{})}catch(e){}
 
   /* Trava curta (lease) usada para evitar duas reservas iguais ao mesmo tempo. */
@@ -35,7 +36,7 @@
 
   /* Fotos: ficam no próprio Firestore (coleção fotos/{id}), como JPEG reduzido, para não precisar do Storage (pago).
      A página continua guardando só o id; as imagens com data-foto são preenchidas assim que a foto chega. */
-  const LIMITE=900000; // cada documento do Firestore aceita até ~1 MB
+  const LIMITE=600000; // cada documento do Firestore aceita até ~1 MB
   const VAZIA="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
   const cacheFoto=new Map(); // id -> blob: URL (ou Promise enquanto carrega)
   window.blobUrl=id=>{const u=cacheFoto.get(id);return typeof u==="string"?u:VAZIA};
@@ -43,14 +44,15 @@
   const paraDataUrl=b=>new Promise((ok,erro)=>{const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=erro;r.readAsDataURL(b)});
   async function reduz(blob){
     let bmp;try{bmp=await createImageBitmap(blob)}catch(e){const d=await paraDataUrl(blob);if(d.length<=LIMITE)return d;throw new Error("Imagem grande demais.")}
-    for(const [lado,q] of [[1600,.8],[1280,.75],[1024,.7],[800,.65],[640,.6],[480,.55]]){
+    for(const [lado,q] of [[1280,.75],[1024,.7],[800,.65],[640,.6],[480,.55]]){
       const k=Math.min(1,lado/Math.max(bmp.width,bmp.height)),c=document.createElement("canvas");
       c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
       const d=c.toDataURL("image/jpeg",q);if(d.length<=LIMITE)return d;
     }
     throw new Error("Imagem grande demais.");
   }
-  window.salvaFoto=async(id,blob)=>{const data=await reduz(blob);await fs.doc("fotos/"+id).set({data,criadoEm:Date.now(),por:auth.currentUser?.uid||null});return id};
+  const comPrazo=(p,ms,txt)=>Promise.race([p,new Promise((_,erro)=>setTimeout(()=>erro(new Error(txt)),ms))]);
+  window.salvaFoto=async(id,blob)=>{const data=await reduz(blob);await comPrazo(fs.doc("fotos/"+id).set({data,criadoEm:Date.now(),por:auth.currentUser?.uid||null}),45000,"a imagem demorou demais para enviar; tente sem imagem ou com outra foto");return id};
   const assets={async upload(blob){const id=novoId();await window.salvaFoto(id,blob);return{id,url:VAZIA}}};
   function carregaFoto(id){
     let u=cacheFoto.get(id);if(u)return Promise.resolve(u);
