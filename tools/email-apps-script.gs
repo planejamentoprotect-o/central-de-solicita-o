@@ -27,3 +27,8 @@ function doPost(e) {
 }
 
 function saida(t) { return ContentService.createTextOutput(t); }
+
+// Teste: escolha "teste" na lista de funções e clique em Executar. Manda um e-mail direto, sem passar pelo app.
+function teste() {
+  MailApp.sendEmail('planejamento@protectepi.com.br', 'Teste da Central de Solicitações', 'Se este e-mail chegou, o envio está funcionando.');
+}
