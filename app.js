@@ -71,6 +71,16 @@
   }};
 
   let papel=null; // null | "gestor" | "master"
+  /* Aceita a lista de papéis mesmo se foi editada à mão no Firebase (nome em maiúsculas, item solto, mapa 0/1/2...). */
+  function normalizaPapeis(d){
+    const lista=v=>Array.isArray(v)?v:typeof v==="string"?[v]:v&&typeof v==="object"?Object.values(v):[];
+    const out={versaoPadrao:d.versaoPadrao||0,master:[],gestores:[],extras:[]};
+    for(const [k,v] of Object.entries(d||{})){const c=k.toLowerCase().trim();
+      const alvo=c.startsWith("master")?"master":c.startsWith("gestor")?"gestores":c.startsWith("extra")?"extras":null;
+      if(alvo)out[alvo].push(...lista(v).filter(x=>typeof x==="string").map(x=>x.trim().toLowerCase()))}
+    for(const k of ["master","gestores","extras"])out[k]=[...new Set(out[k])];
+    return out;
+  }
   /* Solicitante (sem login) só lê os próprios pedidos e chamados; a gestão lê tudo. */
   const PRIVADAS=new Set(["solicitacoes","chamados"]);
   const db=new Proxy(fs,{get(t,k){
@@ -93,16 +103,22 @@
     papel=null;let e=null;
     if(!u.isAnonymous){
       e=u.email.toLowerCase();
+      let erro="";
       try{
-        const ref=fs.doc("config/papeis"),p=await ref.get();let m=p.exists?p.data():{};
-        /* Primeiro acesso do dono: cria a lista de papéis com os gestores da Central antiga. */
-        /* Quando o dono entra e a lista padrão mudou (PAPEIS_VERSAO), acrescenta os novos papéis sem tirar os que já existem. */
-        if(DONOS.includes(e)&&(m.versaoPadrao||0)<PAPEIS_VERSAO){const n={...m,versaoPadrao:PAPEIS_VERSAO};let mudou=true;
-          for(const [k,l] of Object.entries(PAPEIS_INICIAIS)){const a=new Set(n[k]||[]);for(const x of l)if(!a.has(x)){a.add(x);mudou=true}n[k]=[...a]}
-          if(mudou){m=n;try{await ref.set(n)}catch(x){}}}
-        papel=(m.master||[]).includes(e)?"master":(m.gestores||[]).includes(e)?"gestor":null;
-      }catch(x){papel=null}
-      if(!papel){try{sessionStorage.setItem("gestaoMsg","A conta "+e+" não tem acesso ao Painel de Gestão.")}catch(x){}await auth.signOut();return}
+        const ref=fs.doc("config/papeis"),p=await ref.get();let m=normalizaPapeis(p.exists?p.data():{});
+        /* Quando um dono entra e a lista padrão mudou (PAPEIS_VERSAO), acrescenta os papéis padrão sem tirar os que já existem
+           e regrava a lista no formato certo (campos master/gestores/extras em minúsculas, como listas). */
+        if(DONOS.includes(e)&&(m.versaoPadrao||0)<PAPEIS_VERSAO){
+          const n={...m,versaoPadrao:PAPEIS_VERSAO};
+          for(const [k,l] of Object.entries(PAPEIS_INICIAIS))n[k]=[...new Set([...(n[k]||[]),...l])];
+          m=n;try{await ref.set(n)}catch(x){erro="não consegui gravar a lista: "+(x.code||x.message)}
+        }
+        papel=m.master.includes(e)?"master":m.gestores.includes(e)?"gestor":null;
+        /* Dono sempre entra como master (mesmo que a gravação da lista falhe). */
+        if(!papel&&DONOS.includes(e))papel="master";
+      }catch(x){papel=DONOS.includes(e)?"master":null;erro=x.code||x.message}
+      if(erro)console.warn("Papéis:",erro);
+      if(!papel){try{sessionStorage.setItem("gestaoMsg","A conta "+e+" não tem acesso ao Painel de Gestão."+(erro?" ("+erro+")":""))}catch(x){}await auth.signOut();return}
     }
     try{if(papel){sessionStorage.setItem("gestor",papel);sessionStorage.setItem("gestorConta",e)}else{sessionStorage.removeItem("gestor");sessionStorage.removeItem("gestorConta")}}catch(x){}
     window.__APP={email:e,papel,anonimo:u.isAnonymous};
