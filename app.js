@@ -8,6 +8,7 @@
   const DOMINIO="@protectepi.com.br";
   const FORA_DO_DOMINIO=["planejamentoprotect@gmail.com"]; // e-mails de fora da Protect que podem criar conta (dono do app)
   const DONO="planejamentoprotect@gmail.com";
+  const DONOS=[DONO,"planejamento@protectepi.com.br"]; // contas que podem criar/atualizar a lista padrão de papéis
   const PAPEIS_VERSAO=2; // aumente ao mudar a lista abaixo
   const PAPEIS_INICIAIS={
     gestores:["administrativo@protectepi.com.br","controladoria@protectepi.com.br","rh@protectepi.com.br","supplychain@protectepi.com.br"],
@@ -96,7 +97,7 @@
         const ref=fs.doc("config/papeis"),p=await ref.get();let m=p.exists?p.data():{};
         /* Primeiro acesso do dono: cria a lista de papéis com os gestores da Central antiga. */
         /* Quando o dono entra e a lista padrão mudou (PAPEIS_VERSAO), acrescenta os novos papéis sem tirar os que já existem. */
-        if(e===DONO&&(m.versaoPadrao||0)<PAPEIS_VERSAO){const n={...m,versaoPadrao:PAPEIS_VERSAO};let mudou=true;
+        if(DONOS.includes(e)&&(m.versaoPadrao||0)<PAPEIS_VERSAO){const n={...m,versaoPadrao:PAPEIS_VERSAO};let mudou=true;
           for(const [k,l] of Object.entries(PAPEIS_INICIAIS)){const a=new Set(n[k]||[]);for(const x of l)if(!a.has(x)){a.add(x);mudou=true}n[k]=[...a]}
           if(mudou){m=n;try{await ref.set(n)}catch(x){}}}
         papel=(m.master||[]).includes(e)?"master":(m.gestores||[]).includes(e)?"gestor":null;

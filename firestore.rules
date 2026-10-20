@@ -14,8 +14,8 @@ service cloud.firestore {
     function souAutor() { return request.resource.data.autor == request.auth.uid; }
     function meu() { return resource.data.autor == request.auth.uid; }
 
-    // Dono do app (planejamentoprotect@gmail.com, definido pelo Thomas em 2026-10-19): só ele cria a lista de papéis na primeira vez.
-    function dono() { return temEmail() && email() == 'planejamentoprotect@gmail.com'; }
+    // Donos do app (definidos pelo Thomas em 2026-10-19 e 2026-10-20): criam a lista de papéis e importam os dados antigos.
+    function dono() { return temEmail() && email() in ['planejamentoprotect@gmail.com', 'planejamento@protectepi.com.br']; }
     match /config/{d} { allow read: if signed(); allow write: if master() || dono(); }
 
     // Pedidos e chamados: qualquer pessoa cria em seu nome e vê só os seus; a gestão vê e altera todos; só master exclui.
