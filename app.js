@@ -8,9 +8,10 @@
   const DOMINIO="@protectepi.com.br";
   const FORA_DO_DOMINIO=["planejamentoprotect@gmail.com"]; // e-mails de fora da Protect que podem criar conta (dono do app)
   const DONO="planejamentoprotect@gmail.com";
+  const PAPEIS_VERSAO=2; // aumente ao mudar a lista abaixo
   const PAPEIS_INICIAIS={
     gestores:["administrativo@protectepi.com.br","controladoria@protectepi.com.br","rh@protectepi.com.br","supplychain@protectepi.com.br"],
-    master:["gustavo@protectepi.com.br",DONO],extras:[DONO]};
+    master:["gustavo@protectepi.com.br","planejamento@protectepi.com.br",DONO],extras:[DONO]};
 
   if(!cfg||!cfg.apiKey||String(cfg.apiKey).startsWith("COLE")){
     document.addEventListener("DOMContentLoaded",()=>mostraLogin("Configuração do Firebase ausente. Preencha o arquivo config.js.",true));
@@ -94,7 +95,10 @@
       try{
         const ref=fs.doc("config/papeis"),p=await ref.get();let m=p.exists?p.data():{};
         /* Primeiro acesso do dono: cria a lista de papéis com os gestores da Central antiga. */
-        if(!p.exists&&e===DONO){m=PAPEIS_INICIAIS;try{await ref.set(m)}catch(x){}}
+        /* Quando o dono entra e a lista padrão mudou (PAPEIS_VERSAO), acrescenta os novos papéis sem tirar os que já existem. */
+        if(e===DONO&&(m.versaoPadrao||0)<PAPEIS_VERSAO){const n={...m,versaoPadrao:PAPEIS_VERSAO};let mudou=true;
+          for(const [k,l] of Object.entries(PAPEIS_INICIAIS)){const a=new Set(n[k]||[]);for(const x of l)if(!a.has(x)){a.add(x);mudou=true}n[k]=[...a]}
+          if(mudou){m=n;try{await ref.set(n)}catch(x){}}}
         papel=(m.master||[]).includes(e)?"master":(m.gestores||[]).includes(e)?"gestor":null;
       }catch(x){papel=null}
       if(!papel){try{sessionStorage.setItem("gestaoMsg","A conta "+e+" não tem acesso ao Painel de Gestão.")}catch(x){}await auth.signOut();return}

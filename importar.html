@@ -31,7 +31,9 @@ pre{white-space:pre-wrap;font:12px ui-monospace,monospace;color:var(--muted);max
   </div>
   <div class="box">
     <h3>2. Dados e fotos</h3>
-    <p id="resumo">Lendo migracao/dados.json…</p>
+    <p>Escolha o arquivo <b>migracao-central.json</b> que o Claude te entregou:</p>
+    <p><input type="file" id="arq" accept=".json,application/json"></p>
+    <p id="resumo"></p>
     <p><button id="importa" disabled>Importar tudo</button></p>
     <pre id="log"></pre>
   </div>
@@ -41,11 +43,14 @@ pre{white-space:pre-wrap;font:12px ui-monospace,monospace;color:var(--muted);max
   const $=s=>document.querySelector(s),log=t=>{$("#log").textContent+=t+"\n"};
   const db=await claude.use("db");const email=window.__APP?.email||"";
   $("#quem").textContent="Conectado como "+email+(window.__APP?.papel?" ("+window.__APP.papel+")":"");
+  if(!window.__APP?.papel){$("#resumo").innerHTML='<span class="err">Entre primeiro na aba Painel de Gestão do app com o e-mail de dono e depois volte aqui.</span>';$("#arq").disabled=true;return}
   let dados=null;
-  try{dados=await (await fetch("migracao/dados.json",{cache:"no-store"})).json()}catch(e){$("#resumo").innerHTML='<span class="err">Não encontrei migracao/dados.json.</span>';return}
   const atual=await db.doc("config/papeis").get();
-  $("#papeis").value=JSON.stringify(atual.exists?atual.data():dados.papeis,null,2);
+  $("#papeis").value=JSON.stringify(atual.exists?atual.data():{},null,2);
   $("#salvaPapeis").onclick=async()=>{try{const v=JSON.parse($("#papeis").value);await db.doc("config/papeis").set(v);$("#msgPapeis").innerHTML='<span class="ok">Salvo. Recarregue a página.</span>'}catch(e){$("#msgPapeis").innerHTML='<span class="err">'+(e.message||e)+'</span>'}};
+  $("#arq").onchange=async()=>{const f=$("#arq").files[0];if(!f)return;
+    try{dados=JSON.parse(await f.text())}catch(e){$("#resumo").innerHTML='<span class="err">Arquivo inválido.</span>';return}
+    if(!atual.exists)$("#papeis").value=JSON.stringify(dados.papeis,null,2);
   const cols=Object.keys(dados.colecoes);
   $("#resumo").textContent=cols.map(c=>`${c}: ${Object.keys(dados.colecoes[c]).length}`).join(" · ")+` · fotos: ${dados.fotos.length}`;
   $("#importa").disabled=false;
@@ -59,10 +64,11 @@ pre{white-space:pre-wrap;font:12px ui-monospace,monospace;color:var(--muted);max
     for(const [ano,n] of Object.entries(maior)){try{await db.doc("contadores/chamados_"+ano).set({n});log(`Contador de chamados ${ano}: ${n}`)}catch(e){log("ERRO contador "+ano+": "+(e.code||e.message))}}
     let f=0;
     for(const id of dados.fotos){
-      try{const r=await fetch("migracao/fotos/"+id);if(!r.ok)throw new Error("arquivo não encontrado");const b=await r.blob();
+      try{const d=(dados.fotosData||{})[id];if(!d)throw new Error("foto não está no arquivo");const b=await (await fetch(d)).blob();
         await window.salvaFoto(id,b);f++}
       catch(e){log("ERRO foto "+id+": "+(e.code||e.message))}}
-    log(`Fotos: ${f} de ${dados.fotos.length} enviadas.`);log("Pronto. Apague a pasta migracao do repositório depois de conferir.");
+    log(`Fotos: ${f} de ${dados.fotos.length} enviadas.`);log("Pronto. Pode apagar o arquivo migracao-central.json do seu computador.");
+  };
   };
 })();
 </script>
