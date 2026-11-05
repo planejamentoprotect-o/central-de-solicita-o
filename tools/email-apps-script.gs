@@ -67,3 +67,127 @@ function saida(t) { return ContentService.createTextOutput(t); }
 function teste() {
   enviar('planejamento@protectepi.com.br', 'Teste da Central de Solicitações', 'Se este e-mail chegou, o envio está funcionando.');
 }
+
+/* ---------------------------------------------------------------------------------------------
+   Entregas do Mercado Livre: marca a compra como concluída quando chega o e-mail de entrega.
+
+   Como funciona: a cada hora o script procura, nesta caixa do Gmail, e-mails do Mercado Livre dos últimos dias
+   que digam que o pacote foi entregue. Se o número de um pedido salvo na Gestão (campo "Nº do pedido no
+   Mercado Livre" da compra aprovada) aparece no e-mail, a compra vira "Concluída" e o solicitante recebe um aviso.
+
+   Ativar (uma vez):
+   1. Configurações do projeto (engrenagem) > marque "Mostrar o arquivo de manifesto appsscript.json".
+      Abra appsscript.json no editor e troque o conteúdo pelo de tools/appsscript.json do repositório.
+   2. Cole este arquivo inteiro de novo no Código.gs (mantendo a sua CHAVE) e salve.
+   3. Escolha "testarEntregasML" na lista de funções e clique em Executar. Autorize o acesso pedido.
+      Ele só mostra no registro o que encontraria, sem gravar nada.
+   4. Escolha "ativarEntregasML" e clique em Executar. Pronto: passa a rodar sozinho a cada hora.
+   5. Implantar > Gerenciar implantações > lápis > Versão: Nova versão > Implantar (o endereço /exec não muda).
+   Os e-mails do Mercado Livre precisam chegar nesta caixa do Gmail (direto ou por encaminhamento automático). */
+const PROJETO = 'central-de-solicita';
+const APP_URL = 'https://planejamentoprotect-o.github.io/central-de-solicita-o/';
+const BUSCA_ML = 'from:(mercadolivre.com OR mercadolivre.com.br OR mercadolibre.com) newer_than:20d';
+const ENTREGUE = /(entregamos|foi entregue|foram entregues|j[aá] (est[aá]|chegou)|(seu|sua|o seu|a sua) (pacote|compra|produto|pedido) chegou|chegou (o )?(seu|sua)|entrega (foi )?(realizada|conclu[ií]da|feita))/i;
+const NAO_ENTREGUE = /(n[aã]o (foi|conseguimos|pudemos) entreg|tentativa de entrega|entrega (n[aã]o realizada|falhou|cancelada)|devolvid)/i;
+
+function verificarEntregasML() { return entregasML(false); }
+function testarEntregasML() { return entregasML(true); }
+
+function entregasML(teste) {
+  const pend = decisoesComPedidoML().filter(function (d) { return !d.f.entregueML; });
+  console.log(pend.length + ' compra(s) aguardando entrega com nº de pedido do Mercado Livre.');
+  if (!pend.length) return;
+  const achou = {};
+  GmailApp.search(BUSCA_ML, 0, 100).forEach(function (th) {
+    th.getMessages().forEach(function (m) {
+      const texto = m.getSubject() + '\n' + m.getPlainBody();
+      if (!ENTREGUE.test(texto) || NAO_ENTREGUE.test(texto)) return;
+      const tudo = texto + '\n' + m.getBody();
+      pend.forEach(function (d) {
+        const n = d.f.pedidoML;
+        if (achou[d.id] || !n) return;
+        if (new RegExp('(^|\\D)' + n + '(\\D|$)').test(tudo)) achou[d.id] = { quando: m.getDate().getTime(), assunto: m.getSubject() };
+      });
+    });
+  });
+  pend.forEach(function (d) {
+    const a = achou[d.id];
+    if (!a) return;
+    console.log((teste ? '[teste] ' : '') + 'Pedido ' + d.f.pedidoML + ' entregue (e-mail "' + a.assunto + '") -> decisoes/' + d.id);
+    if (!teste) marcarEntregue(d, a.quando);
+  });
+  if (!Object.keys(achou).length) console.log('Nenhum e-mail de entrega com esses números nos últimos 20 dias.');
+}
+
+function marcarEntregue(d, quando) {
+  const agora = Date.now();
+  const texto = 'Entrega confirmada pelo Mercado Livre em ' + Utilities.formatDate(new Date(quando), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm') + ' (pedido ' + d.f.pedidoML + ').';
+  const respostas = (d.raw.respostas && d.raw.respostas.arrayValue && d.raw.respostas.arrayValue.values) || [];
+  respostas.push({ mapValue: { fields: { texto: { stringValue: texto }, data: { integerValue: String(agora) }, por: { stringValue: 'Mercado Livre (automático)' } } } });
+  const campos = {
+    status: { stringValue: 'concluida' },
+    em: { integerValue: String(agora) },
+    entregueML: { booleanValue: true },
+    entregueMLEm: { integerValue: String(quando) },
+    respostas: { arrayValue: { values: respostas } }
+  };
+  const mask = Object.keys(campos).map(function (k) { return 'updateMask.fieldPaths=' + k; }).join('&');
+  firestore('patch', 'decisoes/' + d.id + '?currentDocument.exists=true&' + mask, { fields: campos });
+  try { avisarSolicitante(d.id, texto); } catch (e) { console.warn('Aviso ao solicitante: ' + e); }
+}
+
+function avisarSolicitante(id, linha) {
+  const p = firestore('get', 'solicitacoes/' + id);
+  if (!p) return;
+  const f = valores(p.fields || {});
+  let para = f.autorEmail || '';
+  if (!para && f.autor) { const c = firestore('get', 'contatos/' + f.autor); if (c) para = valores(c.fields || {}).email || ''; }
+  para = String(para).trim().toLowerCase();
+  if (!DOMINIO.test(para)) return;
+  const prot = f.protocolo || id;
+  enviar(para, 'Atualização do pedido ' + prot, 'Olá' + (f.nome ? ', ' + f.nome : '') + '.\n\nSeu pedido ' + prot + ' na Central de Solicitações da Protect foi atualizado.\n\nSituação: Concluída\n' + linha + '\n\nVeja os detalhes em Minhas solicitações:\n' + APP_URL);
+}
+
+function decisoesComPedidoML() {
+  const out = [];
+  let token = '';
+  do {
+    const r = firestore('get', 'decisoes?pageSize=300' + (token ? '&pageToken=' + encodeURIComponent(token) : ''));
+    (r && r.documents || []).forEach(function (doc) {
+      const f = valores(doc.fields || {});
+      if (f.pedidoML) out.push({ id: doc.name.split('/').pop(), f: f, raw: doc.fields });
+    });
+    token = r && r.nextPageToken;
+  } while (token);
+  return out;
+}
+
+/* Firestore pela API REST com a própria conta do Google (precisa ser dona/editora do projeto Firebase). */
+function firestore(metodo, caminho, corpo) {
+  const r = UrlFetchApp.fetch('https://firestore.googleapis.com/v1/projects/' + PROJETO + '/databases/(default)/documents/' + caminho, {
+    method: metodo,
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken(), 'x-goog-user-project': PROJETO },
+    payload: corpo ? JSON.stringify(corpo) : undefined,
+    muteHttpExceptions: true
+  });
+  const c = r.getResponseCode();
+  if (c === 404 && metodo === 'get') return null;
+  if (c >= 300) throw new Error('Firestore ' + c + ': ' + r.getContentText().slice(0, 300));
+  return JSON.parse(r.getContentText() || '{}');
+}
+
+function valores(campos) {
+  const o = {};
+  Object.keys(campos).forEach(function (k) {
+    const v = campos[k];
+    o[k] = 'stringValue' in v ? v.stringValue : 'integerValue' in v ? Number(v.integerValue) : 'doubleValue' in v ? v.doubleValue : 'booleanValue' in v ? v.booleanValue : null;
+  });
+  return o;
+}
+
+function ativarEntregasML() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'verificarEntregasML') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('verificarEntregasML').timeBased().everyHours(1).create();
+  console.log('Verificação de entregas do Mercado Livre ativada (a cada hora).');
+}

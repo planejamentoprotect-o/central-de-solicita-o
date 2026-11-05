@@ -43,3 +43,7 @@ Edite `index.html` (ou gere de novo com `tools/build_app.py`) e rode `firebase d
 4. Coloque a URL `/exec` e a chave em `config.js` (`EMAIL_URL`, `EMAIL_CHAVE`).
 
 O solicitante confirma o e-mail uma vez pelo link; depois cada resposta da gestão é enviada para esse e-mail (só endereços @protectepi.com.br, até 30 por hora).
+
+## Entrega automática das compras do Mercado Livre
+
+Na Gestão > Solicitação de compra, depois de aprovar a compra, informe o **Nº do pedido no Mercado Livre**. O mesmo Apps Script dos e-mails (`tools/email-apps-script.gs`, função `verificarEntregasML`) roda a cada hora, procura na caixa do Gmail dele os e-mails de entrega do Mercado Livre e, quando acha o número, marca a compra como Concluída e avisa o solicitante. Para ativar, siga os passos no comentário do script (manifesto `tools/appsscript.json`, `testarEntregasML`, depois `ativarEntregasML`). Os e-mails do Mercado Livre precisam chegar nessa caixa do Gmail (direto ou por encaminhamento).

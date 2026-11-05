@@ -1229,6 +1229,7 @@ function bindGestao(){
   b.querySelectorAll("[data-aprovar]").forEach(x=>x.onclick=()=>decidirCompra(x.dataset.aprovar,true,"",x));
   b.querySelectorAll("[data-recusar]").forEach(x=>x.onclick=()=>{S.recusando.add(x.dataset.recusar);renderGestao();const t=document.getElementById("rec-"+x.dataset.recusar);t&&t.focus()});
   b.querySelectorAll("[data-cancrec]").forEach(x=>x.onclick=()=>{S.recusando.delete(x.dataset.cancrec);renderGestao()});
+  b.querySelectorAll("[data-mlsalvar]").forEach(x=>x.onclick=()=>salvarPedidoML(x.dataset.mlsalvar,x));
   b.querySelectorAll("[data-alterar]").forEach(x=>x.onclick=()=>{S.alterando.add(x.dataset.alterar);renderGestao()});
   b.querySelectorAll("[data-confrec]").forEach(x=>x.onclick=()=>{const id=x.dataset.confrec,m=(document.getElementById("rec-"+id)?.value||"").trim();if(m.length<3){document.getElementById("recmsg-"+id).innerHTML=`<span class="err">Informe o motivo da recusa.</span>`;return}decidirCompra(id,false,m,x)});
   b.querySelectorAll("[data-res]").forEach(x=>x.onclick=()=>decide(x.dataset.id,x.dataset.res,x));
@@ -1255,11 +1256,25 @@ function aprovBloco(r){
   if((d.aprovada||d.recusada)&&!S.alterando.has(r.id)){
     const quem=k=>d[k]?" · "+esc(String(d[k]).split("@")[0]):"";
     return d.aprovada
-      ?`<div class="aprov"><span class="pill aprovada">Compra aprovada</span><span class="lbl">${fmtTs(d.aprovadaEm)}${quem("aprovadaPor")}</span><button class="btn sm ghost" data-alterar="${id}">Alterar decisão</button></div>`
+      ?`<div class="aprov"><span class="pill aprovada">Compra aprovada</span><span class="lbl">${fmtTs(d.aprovadaEm)}${quem("aprovadaPor")}</span><button class="btn sm ghost" data-alterar="${id}">Alterar decisão</button></div>${mlBloco(r.id,d)}`
       :`<div class="aprov"><span class="pill rec-compra">Compra recusada</span><span class="lbl">${fmtTs(d.recusadaEm)}${quem("recusadaPor")}</span><button class="btn sm ghost" data-alterar="${id}">Alterar decisão</button></div><p class="motivo-rec"><b>Motivo da recusa:</b> ${esc(d.motivoRecusa||"")}</p>`;
   }
   if(S.recusando.has(r.id))return `<div class="aprov-rec"><label class="req" for="rec-${id}">Motivo da recusa</label><textarea id="rec-${id}" rows="2" placeholder="Explique ao solicitante por que a compra foi recusada"></textarea><div class="aprov"><button class="btn sm danger" data-confrec="${id}">Confirmar recusa</button><button class="btn sm" data-cancrec="${id}">Cancelar</button><span class="lbl" id="recmsg-${id}"></span></div></div>`;
   return `<div class="aprov"><button class="btn sm primary" data-aprovar="${id}">Aprovar compra</button><button class="btn sm danger-o" data-recusar="${id}">Recusar compra</button><span class="lbl">O solicitante recebe um aviso com a sua decisão.</span></div>`;
+}
+/* Pedido do Mercado Livre: a gestão informa o número; o script de e-mail (tools/email-apps-script.gs, verificarEntregasML)
+   lê o e-mail de entrega do ML e grava decisoes/{id}.entregueML + status "concluida". */
+function mlBloco(rid,d){
+  const id=esc(rid);
+  if(d.entregueML)return `<div class="aprov"><span class="pill concluida">Entregue · Mercado Livre</span><span class="lbl">${d.entregueMLEm?fmtTs(d.entregueMLEm):""}${d.pedidoML?" · pedido "+esc(d.pedidoML):""}</span></div>`;
+  return `<div class="aprov"><label class="lbl" for="ml-${id}">Nº do pedido no Mercado Livre</label><input type="text" id="ml-${id}" inputmode="numeric" maxlength="24" value="${esc(d.pedidoML||"")}" placeholder="Ex.: 2000012345678901" style="max-width:220px"><button class="btn sm" data-mlsalvar="${id}">Salvar</button><span class="lbl" id="mlmsg-${id}">${d.pedidoML?"Quando o Mercado Livre avisar a entrega, a compra é concluída sozinha.":"Opcional. Com o número, a entrega é registrada sozinha."}</span></div>`}
+async function salvarPedidoML(id,btn){
+  const n=(document.getElementById("ml-"+id)?.value||"").replace(/\D/g,"");
+  if(n&&n.length<8){document.getElementById("mlmsg-"+id).innerHTML=`<span class="err">Confira o número: só os dígitos do pedido.</span>`;return}
+  btn.disabled=true;
+  try{const a={...(S.dec[id]||{})};if(n)a.pedidoML=n;else delete a.pedidoML;
+    await S.db.doc("decisoes/"+id).set(a);toast(n?"Pedido do Mercado Livre salvo":"Número do pedido removido")}
+  catch(e){btn.disabled=false;toast("Não foi possível salvar: "+(e?.message||e?.code||"erro"))}
 }
 async function decidirCompra(id,aprovar,motivo,btn){
   btn.disabled=true;
