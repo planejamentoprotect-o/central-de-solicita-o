@@ -86,7 +86,8 @@ function teste() {
    Os e-mails do Mercado Livre precisam chegar nesta caixa do Gmail (direto ou por encaminhamento automático). */
 const PROJETO = 'central-de-solicita';
 const APP_URL = 'https://planejamentoprotect-o.github.io/central-de-solicita-o/';
-const BUSCA_ML = 'from:(mercadolivre.com OR mercadolivre.com.br OR mercadolibre.com) newer_than:20d';
+// Sem filtro de remetente: e-mails encaminhados de outra caixa (ex.: regra do Outlook) chegam com o remetente de quem encaminhou.
+const BUSCA_ML = '(mercadolivre OR "mercado livre" OR mercadolibre) newer_than:20d';
 const ENTREGUE = /(entregamos|foi entregue|foram entregues|j[aá] (est[aá]|chegou)|(seu|sua|o seu|a sua) (pacote|compra|produto|pedido) chegou|chegou (o )?(seu|sua)|entrega (foi )?(realizada|conclu[ií]da|feita))/i;
 const NAO_ENTREGUE = /(n[aã]o (foi|conseguimos|pudemos) entreg|tentativa de entrega|entrega (n[aã]o realizada|falhou|cancelada)|devolvid)/i;
 
