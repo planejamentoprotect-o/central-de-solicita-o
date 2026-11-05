@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ficha da Máquina</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root,:root[data-theme="light"],:root[data-theme="dark"]{
+    --bg:#0D1512; --panel:#15201B; --panel-2:#1C2A24; --ink:#E4EEE8; --muted:#93A69B; --line:#29392F;
+    --accent:#3FBF7F; --ok:#62C38D; --warn:#E3B63B; --soon:#F28C38; --bad:#F0796C;
+    --s-acab:#A891EC; --s-cost:#5AB4E0; --s-case:#E88AB6; --s-mesa:#7FD1C7; --s-inf:#C9A2F2;
+    --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+    --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  .stripe{height:6px;background:repeating-linear-gradient(-45deg,#3FBF7F 0 10px,#0D1512 10px 20px)}
+  header{background:var(--panel);border-bottom:1px solid var(--line)}
+  .top{max-width:640px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:12px}
+  .logo{display:inline-flex;background:#fff;border-radius:8px;padding:2px 6px;flex:none}
+  .logo img{height:36px;display:block}
+  .top .t{font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);line-height:1.15}
+  main{max-width:640px;margin:0 auto;padding:18px 16px 40px;display:grid;gap:12px}
+  .hero{background:var(--panel);border:1px solid var(--line);border-top:4px solid var(--sc);border-radius:12px;padding:16px 18px;display:grid;gap:6px}
+  .sector{display:inline-flex;align-items:center;gap:7px;font-weight:600;font-size:13px;color:var(--sc);text-transform:uppercase;letter-spacing:.06em}
+  .sector i{width:9px;height:9px;border-radius:2px;background:var(--sc)}
+  .pat{font-family:var(--f-mono);font-weight:600;font-size:40px;line-height:1.05;letter-spacing:.01em;overflow-wrap:anywhere}
+  .sub{font-size:17px;font-weight:500}
+  .sub2{color:var(--muted);font-size:14px}
+  .badge{justify-self:start;display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;padding:4px 11px;border-radius:999px;border:1px solid currentColor;margin-top:4px}
+  .badge::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+  .prev{background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--pc);border-radius:12px;padding:16px 18px;display:grid;gap:10px}
+  .prev h2{margin:0;font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .prev .big{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .prev .big b{font-family:var(--f-display);font-size:44px;font-weight:600;line-height:1;color:var(--pc);font-variant-numeric:tabular-nums}
+  .prev .big span{font-size:15px;font-weight:600;color:var(--pc)}
+  .bar{height:10px;border-radius:999px;background:var(--panel-2);overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--pc);border-radius:999px}
+  .pgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .pgrid div{display:grid;gap:2px}
+  .pgrid span,.k{font-size:12px;color:var(--muted)}
+  .pgrid b{font-weight:600;font-variant-numeric:tabular-nums}
+  .facts{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:4px 18px}
+  .row{display:flex;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:0}
+  .row .v{font-weight:500;text-align:right;overflow-wrap:anywhere}
+  .row .v.mono{font-family:var(--f-mono)}
+  .obs{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px}
+  .foot{color:var(--muted);font-size:12.5px;text-align:center;padding-top:6px;display:grid;gap:2px}
+  .empty{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:40px 20px;text-align:center;color:var(--muted)}
+  .empty b{display:block;color:var(--ink);font-size:17px;margin-bottom:6px}
+  @media (max-width:380px){.pat{font-size:34px}.pgrid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="stripe"></div>
+<header><div class="top"><span class="logo"><img src="logo-protect.png" alt="Protect"></span><div class="t">Ficha da máquina<br>P025 · Gestão de Infraestrutura</div></div></header>
+<main id="app"></main>
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const parseD = s => { if(!s) return null; const [y,m,d] = String(s).split("-").map(Number); return y ? new Date(y,m-1,d) : null; };
+  const fmtD = d => d ? d.toLocaleDateString("pt-BR") : "—";
+  const num = v => (v===""||v==null) ? "" : Number(v).toLocaleString("pt-BR");
+  const COR = {"Acabamento":"var(--s-acab)","Costura":"var(--s-cost)","Caseado":"var(--s-case)","Mesa de corte":"var(--s-mesa)","Infestadeira":"var(--s-inf)"};
+  const ST = {"Operando":"var(--ok)","Em manutenção":"var(--warn)","Parada":"var(--bad)","Baixada":"var(--muted)"};
+
+  // Os dados da máquina vêm dentro do próprio link do QR code (#d=...).
+  // Nada fica guardado neste site: o que está depois do "#" não é enviado ao servidor.
+  const LONGO = {p:"patrimonio",c:"categoria",s:"setor",t:"tipo",st:"status",pe:"periodicidade",ma:"marca",mo:"modelo",se:"serie",
+    aq:"aquisicao",po:"posto",ob:"obs",me:"medida",lm:"larguraMesa",la:"largura",up:"ultPrev",mz:"mesa",g:"geradoEm"};
+  function lerLink(){
+    try{
+      const h = new URLSearchParams((location.hash||"").replace(/^#/,"")).get("d");
+      if(!h) return null;
+      const b = atob(h.replace(/-/g,"+").replace(/_/g,"/"));
+      const o = JSON.parse(new TextDecoder().decode(Uint8Array.from(b, c=>c.charCodeAt(0))));
+      const r = {}; for(const k in o) r[LONGO[k]||k] = o[k];
+      if(r.categoria==="t") r.categoria = "corte"; else if(r.categoria==="c") r.categoria = "costura";
+      return r;
+    }catch(_){ return null; }
+  }
+  window.addEventListener("hashchange", ()=> location.reload());
+  const m = lerLink();
+  if(!m || !m.patrimonio){ $("#app").innerHTML = `<div class="empty"><b>Ficha da máquina</b>Aponte a câmera do celular para o QR code da etiqueta da máquina para ver os dados dela aqui.</div>`; return; }
+
+  const corte = m.categoria==="corte";
+  const grupo = corte ? m.tipo : m.setor;
+  const sc = COR[grupo] || "var(--accent)";
+  document.title = `${m.patrimonio} · Ficha da Máquina`;
+
+  // Preventiva (calculada no dia em que a ficha é aberta)
+  const per = Number(m.periodicidade)||90;
+  const ult = parseD(m.ultPrev), base = ult || parseD(m.aquisicao) || parseD(m.cadastro);
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  let prevHtml = "";
+  if(m.status==="Baixada"){
+    prevHtml = `<section class="prev" style="--pc:var(--muted)"><h2>Manutenção preventiva</h2><div class="big"><span>Máquina baixada</span></div></section>`;
+  } else if(base){
+    const prox = new Date(base); prox.setDate(prox.getDate()+per);
+    const dd = Math.round((prox-hoje)/864e5);
+    const [pc, txt, big] = dd<0 ? ["var(--bad)", "vencida", `${-dd} d`] : dd<=30 ? ["var(--soon)", dd===0?"vence hoje":"para vencer", dd===0?"Hoje":`${dd} d`] : ["var(--ok)", "em dia", `${dd} d`];
+    const pct = Math.max(0, Math.min(100, Math.round(((per - Math.max(dd,0)) / per) * 100)));
+    prevHtml = `<section class="prev" style="--pc:${pc}">
+      <h2>Manutenção preventiva</h2>
+      <div class="big"><b>${big}</b><span>${dd<0?"de atraso · ":""}${txt}</span></div>
+      <div class="bar" aria-hidden="true"><i style="width:${dd<0?100:pct}%"></i></div>
+      <div class="pgrid">
+        <div><span>Última</span><b>${ult?fmtD(ult):"—"}</b></div>
+        <div><span>Próxima</span><b>${fmtD(prox)}</b></div>
+        <div><span>Periodicidade</span><b>${per} dias</b></div>
+      </div>
+    </section>`;
+  } else {
+    prevHtml = `<section class="prev" style="--pc:var(--warn)"><h2>Manutenção preventiva</h2><div class="big"><span>Sem registro de preventiva</span></div></section>`;
+  }
+
+  const linhas = [];
+  const add = (k,v,mono) => { if(v) linhas.push(`<div class="row"><span class="k">${k}</span><span class="v${mono?" mono":""}">${esc(v)}</span></div>`); };
+  add("Equipamento", m.tipo);
+  add(corte ? "Identificação" : "Posto / operador(a)", m.posto);
+  add("Setor", corte ? "Corte" : m.setor);
+  add("Marca", m.marca); add("Modelo", m.modelo); add("Nº de série", m.serie, true);
+  if(corte && m.tipo==="Mesa de corte") add("Medidas", [m.medida?`${num(m.medida)} m`:"", m.larguraMesa?`${num(m.larguraMesa)} m`:""].filter(Boolean).join(" × "));
+  if(corte && m.tipo==="Infestadeira"){ add("Largura máx. de tecido", m.largura?`${num(m.largura)} cm`:""); add("Trabalha na", m.mesa); }
+  add("Aquisição", m.aquisicao ? fmtD(parseD(m.aquisicao)) : "");
+
+  const sub = corte ? [m.posto, m.marca, m.modelo].filter(Boolean).join(" · ") : [m.marca, m.modelo].filter(Boolean).join(" · ");
+  $("#app").innerHTML = `
+    <section class="hero" style="--sc:${sc}">
+      <span class="sector"><i></i>${esc(grupo||"")}</span>
+      <div class="pat">${esc(m.patrimonio)}</div>
+      <div class="sub">${esc(m.tipo||"")}${!corte&&m.posto?` · ${esc(m.posto)}`:""}</div>
+      ${sub?`<div class="sub2">${esc(sub)}</div>`:""}
+      ${m.status?`<span class="badge" style="color:${ST[m.status]||"var(--muted)"}">${esc(m.status)}</span>`:""}
+    </section>
+    ${prevHtml}
+    <section class="facts">${linhas.join("")}</section>
+    ${m.obs?`<section class="obs"><div class="k">Observações</div><div>${esc(m.obs)}</div></section>`:""}
+    <div class="foot"><span>Dados da etiqueta gerada em ${esc(m.geradoEm||"—")}${m.status?" · o status é o da data da etiqueta":""}</span><span>Dias para a preventiva calculados hoje, ${fmtD(hoje)}.</span></div>`;
+})();
+</script>
+</body>
+</html>
